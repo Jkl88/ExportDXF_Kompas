@@ -18,19 +18,31 @@ using System.Xml.Linq;
 
 namespace ExportDXF_Kompas
 {
-    class KompasService
+    public class KompasService
     {
         
         private IApplication app7;
         private KompasObject app5;
         private readonly Settings settings;
         private readonly Inform inform;
-
+        public bool startKompas = false;
 
         public IApplication getApp() { return app7; }
         public KompasObject getApp5() { return app5; }
 
         public KompasService(Settings _settings, Inform _inform) { settings = _settings; inform = _inform; }
+
+        public bool StartApp() {
+            try
+            {
+                Type t = Type.GetTypeFromProgID("Kompas.Application.7");
+                Activator.CreateInstance(t);                
+                return startKompas = Connect();
+            }
+            catch { return false; }
+            
+        }
+
         public bool Connect()
         {
             try
@@ -120,7 +132,7 @@ namespace ExportDXF_Kompas
                 var singleInfo = GetPart(topPart, 0);
                 if (singleInfo != null)
                 {
-                    var n = new TreeNode($"{singleInfo.Marking}-{singleInfo.Name}") { Tag = singleInfo };
+                    var n = new TreeNode(checkBoxStr(singleInfo) + $"{singleInfo.Marking}-{singleInfo.Name}") { Tag = singleInfo };
                     n.BackColor = setColor(singleInfo);
                     n.ImageKey = n.SelectedImageKey = icons(singleInfo);
                     return new[] { n };

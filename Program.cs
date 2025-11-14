@@ -8,15 +8,24 @@ namespace ExportDXF_Kompas
 {
     static class Program
     {
+        static MainForm mainForm;
         /// <summary>
         /// Главная точка входа для приложения.
         /// </summary>
-        [STAThread]
+        [STAThread]        
         static void Main()
         {
+            Application.ApplicationExit += OnAppExit;
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new MainForm());
+            mainForm = new MainForm();
+            Application.Run(mainForm);
+        }
+
+        private static void OnAppExit(object sender, EventArgs e)
+        {
+           var kompas = mainForm.kompas;
+           if (kompas.startKompas) kompas.getApp().Quit();
         }
     }
 }

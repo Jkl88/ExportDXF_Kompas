@@ -24,10 +24,10 @@ namespace ExportDXF_Kompas
     {
         private readonly string settingsPath = Path.Combine(
             System.Windows.Forms.Application.StartupPath, "settings.json");
-        private readonly KompasService kompas;
+        public readonly KompasService kompas;
         private readonly Settings settings;
         private readonly Inform inform = new Inform();
-
+        private bool kompasConnect = false;
         public MainForm()
         {
             
@@ -41,7 +41,7 @@ namespace ExportDXF_Kompas
             textBoxReplaceOut.TabIndexChanged += new System.EventHandler(this.textNameFile_TextChanged);
             textBoxReplaceIn.TabIndexChanged += new System.EventHandler(this.textNameFile_TextChanged);
             kompas = new KompasService(settings, inform);
-            bool kompasConnect = kompas.Connect();
+            kompasConnect = kompas.Connect();
             toolStripStatusLabel.Text = kompasConnect ? "✅ Подключено к КОМПАС" : "❌ КОМПАС не запущен";
             toolStripStatusLabel.ForeColor = kompasConnect ? Color.Green : Color.Red;
             butScan.Enabled = kompasConnect;
@@ -415,7 +415,7 @@ namespace ExportDXF_Kompas
             switch (toolStripStatusLabel.Text)
             {
                 case "❌ КОМПАС не запущен":
-                    bool kompasConnect = kompas.Connect();
+                    kompasConnect = kompas.Connect();
                     toolStripStatusLabel.Text = kompasConnect ? "✅ Подключено к КОМПАС" : "❌ КОМПАС не запущен";
                     toolStripStatusLabel.ForeColor = kompasConnect ? Color.Green : Color.Red;
                     butScan.Enabled = kompasConnect;
@@ -497,10 +497,12 @@ namespace ExportDXF_Kompas
                 }
 
                 toolStripStatusLabel.Text = "💾 Экспорт деталей в DXF...";
+                toolStripProgressBar.Style = ProgressBarStyle.Marquee;
+                toolStripProgressBar.MarqueeAnimationSpeed = 30;
                 toolStripStatusLabel.ForeColor = Color.Blue;
                 toolStripProgressBar.Value = 0;
                 toolStripProgressBar.Maximum = nodes.Count;
-                toolStripProgressBar.Style = ProgressBarStyle.Blocks;
+                
 
                 int count = 0;
                 string baseFolder = textBoxPath.Text;
@@ -524,6 +526,7 @@ namespace ExportDXF_Kompas
 
                             Invoke(new Action(() =>
                             {
+                                toolStripProgressBar.Style = ProgressBarStyle.Blocks;
                                 toolStripProgressBar.Value = Math.Min(toolStripProgressBar.Value + 1, toolStripProgressBar.Maximum);
                                 toolStripStatusLabel.Text = $"💾 Сохранено {toolStripProgressBar.Value}/{toolStripProgressBar.Maximum}";
                                 toolStripStatusLabel.ForeColor = Color.Blue;
@@ -983,6 +986,8 @@ namespace ExportDXF_Kompas
         {
             try
             {
+                inform.Info = "";
+                inform.Warning = "";
                 var files = ((string[])e.Data.GetData(DataFormats.FileDrop))
                     .Where(f =>
                            f.EndsWith(".m3d", StringComparison.OrdinalIgnoreCase) ||
@@ -994,13 +999,32 @@ namespace ExportDXF_Kompas
                     return;
 
                 // Проверка КОМПАС
-                if (kompas == null || !kompas.Connect())
+                if (kompas == null || !kompasConnect)
                 {
-                    MessageBox.Show("КОМПАС не запущен.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
+                    toolStripStatusLabel.Text = "🔄 Попытка запуска Компас...";
+                    toolStripStatusLabel.ForeColor = Color.Blue;
+                    toolStripProgressBar.Style = ProgressBarStyle.Marquee;
+                    toolStripProgressBar.MarqueeAnimationSpeed = 30;
+                    await Task.Run(() =>
+                    {
+                        bool _kompasConnect = kompas.StartApp();
+                        Invoke(new Action(() => { kompasConnect = _kompasConnect; }));
+                    });
+
+                    if (!kompasConnect) {
+
+                        toolStripStatusLabel.Text = kompasConnect ? "✅ Подключено к КОМПАС" : "❌ КОМПАС не запущен";
+                        toolStripStatusLabel.ForeColor = kompasConnect ? Color.Green : Color.Red;
+                        toolStripProgressBar.Style = ProgressBarStyle.Blocks;
+                        toolStripProgressBar.MarqueeAnimationSpeed = 0;
+                        MessageBox.Show("КОМПАС не запущен.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+
                 }
 
                 toolStripStatusLabel.Text = "🔎 Загрузка файлов…";
+                toolStripStatusLabel.ForeColor = Color.Blue;
                 toolStripProgressBar.Style = ProgressBarStyle.Marquee;
                 toolStripProgressBar.MarqueeAnimationSpeed = 30;
 
@@ -1033,7 +1057,9 @@ namespace ExportDXF_Kompas
 
                 treeParts.ExpandAll();
 
-                toolStripStatusLabel.Text = $"Готово ({treeParts.Nodes.Count} корневых узлов).";
+                toolStripStatusLabel.Text = $"✅ Загрузка завершена ({treeParts.Nodes.Count} корневых узлов).";
+                toolStripStatusLabel.ForeColor = Color.Green;
+
             }
             finally
             {
