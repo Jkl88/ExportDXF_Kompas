@@ -42,6 +42,7 @@ namespace ExportDXF_Kompas
             this.toolStripStatusLabel = new System.Windows.Forms.ToolStripStatusLabel();
             this.toolStripProgressBar = new System.Windows.Forms.ToolStripProgressBar();
             this.statusStrip = new System.Windows.Forms.StatusStrip();
+            this.toolStripInfoLabel = new System.Windows.Forms.ToolStripStatusLabel();
             this.label_type = new System.Windows.Forms.Label();
             this.tabControl = new System.Windows.Forms.TabControl();
             this.tabPage1 = new System.Windows.Forms.TabPage();
@@ -64,6 +65,7 @@ namespace ExportDXF_Kompas
             this.label_marking = new System.Windows.Forms.Label();
             this.text_type = new System.Windows.Forms.Label();
             this.tabPage2 = new System.Windows.Forms.TabPage();
+            this.checkBoxRemoveOuterDiameter = new System.Windows.Forms.CheckBox();
             this.checkBoxCreateViewElements = new System.Windows.Forms.CheckBox();
             this.checkBoxDisignation = new System.Windows.Forms.CheckBox();
             this.checkBoxBreakLinesVisible = new System.Windows.Forms.CheckBox();
@@ -97,7 +99,6 @@ namespace ExportDXF_Kompas
             this.previewPart = new System.Windows.Forms.Label();
             this.выводDXFToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.button_Export = new System.Windows.Forms.Button();
-            this.toolStripInfoLabel = new System.Windows.Forms.ToolStripStatusLabel();
             this.contextMenuExport.SuspendLayout();
             this.statusStrip.SuspendLayout();
             this.tabControl.SuspendLayout();
@@ -201,6 +202,11 @@ namespace ExportDXF_Kompas
             this.statusStrip.SizingGrip = false;
             this.statusStrip.TabIndex = 4;
             this.statusStrip.Text = "statusStrip";
+            // 
+            // toolStripInfoLabel
+            // 
+            this.toolStripInfoLabel.Name = "toolStripInfoLabel";
+            this.toolStripInfoLabel.Size = new System.Drawing.Size(0, 17);
             // 
             // label_type
             // 
@@ -441,6 +447,7 @@ namespace ExportDXF_Kompas
             // 
             // tabPage2
             // 
+            this.tabPage2.Controls.Add(this.checkBoxRemoveOuterDiameter);
             this.tabPage2.Controls.Add(this.checkBoxCreateViewElements);
             this.tabPage2.Controls.Add(this.checkBoxDisignation);
             this.tabPage2.Controls.Add(this.checkBoxBreakLinesVisible);
@@ -457,6 +464,18 @@ namespace ExportDXF_Kompas
             this.tabPage2.TabIndex = 1;
             this.tabPage2.Text = "⚙️ DXF параметры";
             this.tabPage2.UseVisualStyleBackColor = true;
+            // 
+            // checkBoxRemoveOuterDiameter
+            // 
+            this.checkBoxRemoveOuterDiameter.AutoSize = true;
+            this.checkBoxRemoveOuterDiameter.Enabled = false;
+            this.checkBoxRemoveOuterDiameter.Location = new System.Drawing.Point(142, 248);
+            this.checkBoxRemoveOuterDiameter.Name = "checkBoxRemoveOuterDiameter";
+            this.checkBoxRemoveOuterDiameter.Size = new System.Drawing.Size(215, 17);
+            this.checkBoxRemoveOuterDiameter.TabIndex = 3;
+            this.checkBoxRemoveOuterDiameter.Text = "Убрать внешний диаметр у зенковок";
+            this.checkBoxRemoveOuterDiameter.UseVisualStyleBackColor = true;
+            this.checkBoxRemoveOuterDiameter.CheckedChanged += new System.EventHandler(this.checkBox_CheckedChanged);
             // 
             // checkBoxCreateViewElements
             // 
@@ -685,6 +704,7 @@ namespace ExportDXF_Kompas
             this.listBoxSaveSimple.DrawItem += new System.Windows.Forms.DrawItemEventHandler(this.listBoxSaveSimple_DrawItem);
             this.listBoxSaveSimple.MouseDoubleClick += new System.Windows.Forms.MouseEventHandler(this.listBoxSaveSimple_MouseDoubleClick);
             this.listBoxSaveSimple.MouseDown += new System.Windows.Forms.MouseEventHandler(this.listBoxSaveSimple_MouseDown);
+            this.listBoxSaveSimple.DrawMode = System.Windows.Forms.DrawMode.OwnerDrawFixed;
             // 
             // contextMenuTemplates
             // 
@@ -793,11 +813,6 @@ namespace ExportDXF_Kompas
             this.button_Export.UseVisualStyleBackColor = true;
             this.button_Export.Click += new System.EventHandler(this.button_Export_Click);
             // 
-            // toolStripInfoLabel
-            // 
-            this.toolStripInfoLabel.Name = "toolStripInfoLabel";
-            this.toolStripInfoLabel.Size = new System.Drawing.Size(0, 17);
-            // 
             // MainForm
             // 
             this.AllowDrop = true;
@@ -899,5 +914,6 @@ namespace ExportDXF_Kompas
         private System.Windows.Forms.ToolStripMenuItem выводToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem пустоToolStripMenuItem;
         private System.Windows.Forms.ToolStripStatusLabel toolStripInfoLabel;
+        private System.Windows.Forms.CheckBox checkBoxRemoveOuterDiameter;
     }
 }

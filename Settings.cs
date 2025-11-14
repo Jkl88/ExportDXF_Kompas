@@ -15,6 +15,7 @@ namespace ExportDXF_Kompas
         public bool BreakLinesVisible { get; set; } = false;
         public bool Disignation { get; set; } = false;
         public bool CreateViewElements { get; set; } = false;
+        public bool RemoveOuterDiameter { get; set; } = false;
 
         public string Separator { get; set; } = "_";
         public string Sample { get; set; } = "{ИмяФайлаОриг}";

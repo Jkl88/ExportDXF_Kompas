@@ -128,7 +128,7 @@ namespace ExportDXF_Kompas
 
         private void checkedExport(PartInfo part = null, TreeNode node = null)
         {
-            if (node != null || part != null)
+            if ((node != null || part != null) && !part.Assembly)
             {
                 // Обновляем текст и чекбокс
                 node.Text = (part.Selected ? "✅ " : "❌ ") +
@@ -141,11 +141,13 @@ namespace ExportDXF_Kompas
             PartInfo _part = HasSelectedNodes(treeParts.Nodes);
             bool anySelected = _part != null;
             if (!anySelected) { button_Export.Enabled = anySelected; return; }
-
+            
             FileInfo file = new FileInfo(_part.Part.FileName);
             listProperties.Tag = _part;
             textBoxPath.Text = file.DirectoryName;
             button_Export.Enabled = anySelected;
+            
+           
 
         }
 
@@ -218,12 +220,15 @@ namespace ExportDXF_Kompas
 
         private void checkBox_CheckedChanged(object sender, EventArgs e)
         {
+            if (settings == null) return;
+
             if (sender is CheckBox check)
             {
                 switch (check.Name)
                 {
                     case "checkBoxBreakLink":
                         settings.BreakLink = check.Checked;
+                        checkBoxRemoveOuterDiameter.Enabled = check.Checked;
                         break;
 
                     case "checkBoxCenterLinesVisible":
@@ -245,6 +250,10 @@ namespace ExportDXF_Kompas
                     case "checkBoxCreateViewElements":
                         settings.CreateViewElements = check.Checked;
                         break;
+
+                    case "checkBoxRemoveOuterDiameter":
+                        settings.RemoveOuterDiameter = check.Checked;
+                        break;
                 }
                 SaveSettings();
             }
@@ -253,11 +262,13 @@ namespace ExportDXF_Kompas
         private void setCheckBoxs()
         {
             checkBoxBreakLink.Checked = settings.BreakLink;
+            checkBoxRemoveOuterDiameter.Enabled = settings.BreakLink;
             checkBoxCenterLinesVisible.Checked = settings.CenterLinesVisible;
             checkBoxBendsLinesVisible.Checked = settings.BendsLinesVisible;
             checkBoxBreakLinesVisible.Checked = settings.BreakLinesVisible;
             checkBoxDisignation.Checked = settings.Disignation;
             checkBoxCreateViewElements.Checked = settings.CreateViewElements;
+            checkBoxRemoveOuterDiameter.Checked = settings.RemoveOuterDiameter;
 
         }
         private Settings LoadSettings()
@@ -282,6 +293,7 @@ namespace ExportDXF_Kompas
                     checkBoxBreakLinesVisible.Checked = loaded.BreakLinesVisible;
                     checkBoxDisignation.Checked = loaded.Disignation;
                     checkBoxCreateViewElements.Checked = loaded.CreateViewElements;
+                    checkBoxRemoveOuterDiameter.Checked = loaded.RemoveOuterDiameter;
 
                     // === Загружаем шаблоны (если есть) ===
                     listBoxSaveSimple.Items.Clear();
@@ -460,7 +472,18 @@ namespace ExportDXF_Kompas
             }
         }
 
-        private async void button_Export_Click(object sender, EventArgs e)
+        private void button_Export_Click(object sender, EventArgs e) {
+
+            foreach (var t in settings.Templates)
+            {
+
+                if (t.IsDefault) ExportByTemplate(t);
+
+            }
+
+        }
+
+        private async void Export_dxf()
         {
             
             try
@@ -559,6 +582,7 @@ namespace ExportDXF_Kompas
         {
             try
             {
+                bool prevTokenEmpty = false;
                 string separator = textSeparator.Text ?? "";
                 string pattern = string.IsNullOrWhiteSpace(textNameFile.Text)
                     ? "{ИмяФайлаОриг}.dxf"
@@ -620,14 +644,20 @@ namespace ExportDXF_Kompas
 
                     if (token.Equals("{Разделитель}", StringComparison.OrdinalIgnoreCase))
                     {
-                        // Вставляем разделитель ТОЛЬКО если уже был контент до него
-                        if (hasContent)
+                        // Разделитель ставим ТОЛЬКО если:
+                        // 1) уже есть содержательный контент
+                        // 2) предыдущий токен НЕ был пустым
+                        if (hasContent && !prevTokenEmpty)
                             sb.Append(separator);
+
+                        // разделитель сам не создаёт контент
                     }
                     else
                     {
-                        // Обычное свойство
                         string val = map.TryGetValue(token, out var v) ? v : "";
+
+                        prevTokenEmpty = string.IsNullOrEmpty(val);
+
                         AppendAndMark(val);
                     }
 
@@ -716,25 +746,19 @@ namespace ExportDXF_Kompas
         // === Отметить шаблон по умолчанию жирным ===
         private void MarkDefaultTemplate(string name)
         {
-            // Сбрасываем формат всем
+            if (string.IsNullOrWhiteSpace(name))
+                return;
+
             for (int i = 0; i < listBoxSaveSimple.Items.Count; i++)
             {
-                listBoxSaveSimple.Font = new Font(listBoxSaveSimple.Font, FontStyle.Regular);
-            }
-
-            // выделяем один — по имени
-            if (!string.IsNullOrWhiteSpace(name))
-            {
-                for (int i = 0; i < listBoxSaveSimple.Items.Count; i++)
+                if (listBoxSaveSimple.Items[i].ToString().Equals(name, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (listBoxSaveSimple.Items[i].ToString().Equals(name, StringComparison.OrdinalIgnoreCase))
-                    {
-                        listBoxSaveSimple.SelectedIndex = i;
-                        listBoxSaveSimple.Font = new Font(listBoxSaveSimple.Font, FontStyle.Bold);
-                        break;
-                    }
+                    listBoxSaveSimple.SelectedIndex = i;
+                    break;
                 }
             }
+
+            listBoxSaveSimple.Invalidate(); // перерисовать, чтобы применился жирный шрифт
         }
 
         private void buttonSaveSimple_Click(object sender, EventArgs e)
@@ -858,14 +882,20 @@ namespace ExportDXF_Kompas
         {
             if (e.Index < 0) return;
 
-            string text = listBoxSaveSimple.Items[e.Index].ToString();
-            bool isDefault = text.Equals(settings.DefaultTemplateName, StringComparison.OrdinalIgnoreCase);
+            string itemName = listBoxSaveSimple.Items[e.Index].ToString();
+            bool isDefault = settings.DefaultTemplateName == itemName;
+
+            Font font = isDefault
+                ? new Font(e.Font, FontStyle.Bold)
+                : e.Font;
 
             e.DrawBackground();
-            Font font = isDefault ? new Font(e.Font, FontStyle.Bold) : e.Font;
-            Brush brush = new SolidBrush(e.ForeColor);
 
-            e.Graphics.DrawString(text, font, brush, e.Bounds);
+            using (var brush = new SolidBrush(e.ForeColor))
+            {
+                e.Graphics.DrawString(itemName, font, brush, e.Bounds);
+            }
+
             e.DrawFocusRectangle();
         }
 
@@ -897,6 +927,8 @@ namespace ExportDXF_Kompas
             {
                 var item = new ToolStripMenuItem(t.Name);
                 item.Click += (s, _) => ExportByTemplate(t);
+
+
                 // помечаем шаблон по умолчанию символом ⭐
                 if (t.IsDefault)
                     item.Font = new Font(item.Font, FontStyle.Bold);
@@ -905,94 +937,17 @@ namespace ExportDXF_Kompas
             }
         }
 
-        private async void ExportByTemplate(FileNameTemplate template)
+        private void ExportByTemplate(FileNameTemplate template)
         {
-            try
-            {
-                // Получаем выбранные элементы
-                List<TreeNode> nodes = new();
 
-                // 🔹 Если контекстное меню вызвано на treeParts → экспортируем один выбранный узел
-                if (contextMenuExport.SourceControl == treeParts)
-                {
-                    if (treeParts.SelectedNode != null)
-                        nodes.Add(treeParts.SelectedNode);
-                }
-                // 🔹 Если вызвано на кнопке → экспортируем все выбранные галочкой элементы
-                else if (contextMenuExport.SourceControl == button_Export)
-                {
-                    foreach (TreeNode n in treeParts.Nodes)
-                    {
-                        if (n.Tag is PartInfo info && info.Selected)
-                            nodes.Add(n);
-                    }
-                }
+            // Подготовка шаблона
+            textNameFile.Text = template.Pattern;
+            textSeparator.Text = template.Separator;
+            textBoxReplaceIn.Text = template.ReplaceIn;
+            textBoxReplaceOut.Text = template.ReplaceOut;
 
-                // Проверка, есть ли что экспортировать
-                if (nodes.Count == 0)
-                {
-                    MessageBox.Show("Нет выбранных деталей для экспорта.", "Экспорт DXF",
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return;
-                }
+            Export_dxf();
 
-                // Подготовка шаблона
-                textNameFile.Text = template.Pattern;
-                textSeparator.Text = template.Separator;
-                textBoxReplaceIn.Text = template.ReplaceIn;
-                textBoxReplaceOut.Text = template.ReplaceOut;
-
-                toolStripStatusLabel.Text = $"💾 Экспорт по шаблону: {template.Name}";
-                toolStripStatusLabel.ForeColor = Color.Blue;
-                toolStripProgressBar.Value = 0;
-                toolStripProgressBar.Maximum = nodes.Count;
-                toolStripProgressBar.Style = ProgressBarStyle.Blocks;
-
-                int count = 0;
-                string baseFolder = textBoxPath.Text;
-
-                await Task.Run(() =>
-                {
-                    int exportIndex = 0;
-
-                    foreach (TreeNode n in nodes)
-                    {
-                        if (n.Tag is PartInfo info)
-                        {
-                            string fullPath = $"{baseFolder}{BuildFileName(info)}";
-                            Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-
-                            bool ok = kompas.ExportToDxf(info, info.EmbodimentIndex, fullPath);
-                            if (ok)
-                                Interlocked.Increment(ref count);
-                            exportIndex++;
-
-                            // обновление прогресса
-                            Invoke(new Action(() =>
-                            {
-                                toolStripProgressBar.Value = Math.Min(toolStripProgressBar.Value + 1, toolStripProgressBar.Maximum);
-                                toolStripStatusLabel.Text = $"💾 Сохранено {toolStripProgressBar.Value}/{toolStripProgressBar.Maximum}";
-                                toolStripStatusLabel.ForeColor = Color.Green;
-                            }));
-                        }
-                    }
-                });
-
-                toolStripProgressBar.Value = toolStripProgressBar.Maximum;
-                toolStripStatusLabel.Text = $"✅ Экспорт завершён. Сохранено {count} DXF.";
-                toolStripStatusLabel.ForeColor = Color.Green;
-
-                if (MessageBox.Show($"Сохранено {count} DXF файлов.\nОткрыть папку экспорта?",
-                    "Экспорт завершён", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
-                {
-                    System.Diagnostics.Process.Start("explorer.exe", baseFolder);
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"⚠️ Ошибка при экспорте: {ex.Message}", "Ошибка",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
         }
 
         private void contextMenuExport_Opening(object sender, CancelEventArgs e)
@@ -1011,8 +966,16 @@ namespace ExportDXF_Kompas
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
                 var files = (string[])e.Data.GetData(DataFormats.FileDrop);
-                bool hasM3D = files.Any(f => string.Equals(Path.GetExtension(f), ".m3d", StringComparison.OrdinalIgnoreCase));
-                e.Effect = hasM3D ? DragDropEffects.Copy : DragDropEffects.None;
+
+                bool hasSupported =
+                    files.Any(f =>
+                    {
+                        string ext = Path.GetExtension(f);
+                        return ext.Equals(".m3d", StringComparison.OrdinalIgnoreCase)
+                            || ext.Equals(".a3d", StringComparison.OrdinalIgnoreCase);
+                    });
+
+                e.Effect = hasSupported ? DragDropEffects.Copy : DragDropEffects.None;
             }
             else
             {
@@ -1025,24 +988,23 @@ namespace ExportDXF_Kompas
             try
             {
                 var files = ((string[])e.Data.GetData(DataFormats.FileDrop))
-                            .Where(f => string.Equals(Path.GetExtension(f), ".m3d", StringComparison.OrdinalIgnoreCase))
-                            .Distinct()
-                            .ToList();
+                    .Where(f =>
+                           f.EndsWith(".m3d", StringComparison.OrdinalIgnoreCase) ||
+                           f.EndsWith(".a3d", StringComparison.OrdinalIgnoreCase))
+                    .Distinct()
+                    .ToList();
 
-                if (files.Count == 0) return;
+                if (files.Count == 0)
+                    return;
 
-                // Проверяем КОМПАС
+                // Проверка КОМПАС
                 if (kompas == null || !kompas.Connect())
                 {
-                    MessageBox.Show("КОМПАС не запущен или не удалось подключиться.",
-                                    "Drag & Drop",
-                                    MessageBoxButtons.OK,
-                                    MessageBoxIcon.Warning);
+                    MessageBox.Show("КОМПАС не запущен.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
 
-                toolStripStatusLabel.Text = "🔎 Чтение файлов…";
-                toolStripStatusLabel.ForeColor = Color.Blue;
+                toolStripStatusLabel.Text = "🔎 Загрузка файлов…";
                 toolStripProgressBar.Style = ProgressBarStyle.Marquee;
                 toolStripProgressBar.MarqueeAnimationSpeed = 30;
 
@@ -1052,34 +1014,30 @@ namespace ExportDXF_Kompas
                 {
                     foreach (var file in files)
                     {
+                        var ext = Path.GetExtension(file).ToLowerInvariant();
+
                         try
                         {
-                            var nodes = kompas.BuildNodesForM3D(file);
+                            TreeNode[] nodes;
 
-                            // ❗ Добавляем в дерево ТОЛЬКО через UI-поток
+                            nodes = kompas.Scan(file);
+
                             Invoke(new Action(() =>
                             {
                                 treeParts.Nodes.AddRange(nodes);
                             }));
                         }
-                        catch (Exception exFile)
+                        catch (Exception exf)
                         {
                             Invoke(new Action(() =>
-                                MessageBox.Show(
-                                    $"Ошибка обработки «{Path.GetFileName(file)}»:\n{exFile.Message}",
-                                    "Ошибка",
-                                    MessageBoxButtons.OK,
-                                    MessageBoxIcon.Error
-                                )));
+                                MessageBox.Show($"Ошибка файла {Path.GetFileName(file)}:\n{exf.Message}")));
                         }
                     }
                 });
 
-                if (treeParts.Nodes.Count > 0)
-                    treeParts.ExpandAll();
+                treeParts.ExpandAll();
 
-                toolStripStatusLabel.Text = $"✅ Загружено: {treeParts.Nodes.Count} элемент(ов)";
-                toolStripStatusLabel.ForeColor = Color.Green;
+                toolStripStatusLabel.Text = $"Готово ({treeParts.Nodes.Count} корневых узлов).";
             }
             finally
             {

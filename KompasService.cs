@@ -1,6 +1,7 @@
 ﻿using ExportDXF_Kompas.Properties;
 using Kompas6API5;
 using Kompas6Constants;
+using Kompas6Constants3D;
 using KompasAPI7;
 using System;
 using System.Collections.Generic;
@@ -45,11 +46,14 @@ namespace ExportDXF_Kompas
             }
         }
 
-        public TreeNode[] Scan()
+        public TreeNode[] Scan(string filePath = null)
         {
             try
             {
-                var doc3d = (IKompasDocument3D)app7.ActiveDocument;
+                var doc3d = filePath == null
+                    ? (IKompasDocument3D)app7.ActiveDocument
+                    : (IKompasDocument3D)app7.Documents.Open(filePath, false, true);
+
                 if (doc3d == null)
                     return Array.Empty<TreeNode>();
 
@@ -71,30 +75,61 @@ namespace ExportDXF_Kompas
                     return new[] { rootNode };
                 }
 
-                // === Если это одиночная деталь с вариантами (Embodiments) ===
-                var nodes = new List<TreeNode>();
+                // =====================================================================
+                // === Если это ОДИНОЧНАЯ ДЕТАЛЬ, но есть несколько исполнений ==========
+                // =====================================================================
                 var embMgr = topPart as IEmbodimentsManager;
                 int embCount = embMgr?.EmbodimentCount ?? 0;
 
-                for (int i = 0; i < embCount; i++)
+                if (embCount > 1)
                 {
-                    var info = GetPart(embMgr.Embodiment[i].Part, i);
-                    if (info != null)
+                    // Получаем базовое исполнение и формируем root как "сборку"
+                    var baseInfo = GetPart(embMgr.Embodiment[0].Part, 0);                    
+
+                    var rootNode = new TreeNode($"{baseInfo.Marking}-{baseInfo.Name}")
                     {
-                        var node = new TreeNode(checkBoxStr(info) + $"{info.Marking}-{info.Name}") { Tag = info };
+                        Tag = baseInfo
+                    };
+
+                    // === РУТ ВЕДЁТ СЕБЯ КАК СБОРКА ===                    
+                    rootNode.ImageKey = rootNode.SelectedImageKey = icons(baseInfo);
+                    baseInfo.Assembly = true;
+                    baseInfo.Selected = false;
+                    rootNode.BackColor = setColor(baseInfo);
+
+                    // Добавляем исполнения
+                    for (int i = 0; i < embCount; i++)
+                    {
+                        var info = GetPart(embMgr.Embodiment[i].Part, i);
+                        if (info == null) continue;
+
+                        var node = new TreeNode(checkBoxStr(info) + $"{info.Marking}-{info.Name}")
+                        {
+                            Tag = info
+                        };
                         node.BackColor = setColor(info);
                         node.ImageKey = node.SelectedImageKey = icons(info);
-                        nodes.Add(node);
+
+                        rootNode.Nodes.Add(node);
                     }
+
+                    return new[] { rootNode };
                 }
-                return nodes.ToArray();
+
+                // === Если только 1 исполнение (обычная деталь) ===
+                var singleInfo = GetPart(topPart, 0);
+                if (singleInfo != null)
+                {
+                    var n = new TreeNode($"{singleInfo.Marking}-{singleInfo.Name}") { Tag = singleInfo };
+                    n.BackColor = setColor(singleInfo);
+                    n.ImageKey = n.SelectedImageKey = icons(singleInfo);
+                    return new[] { n };
+                }
             }
-            catch (Exception ex)
+            catch
             {
-                MessageBox.Show("⚠️ Ошибка сканирования:\nВозможно Активный документ не является \"Сборкой\" или \"Деталью\"",
-                                "Ошибка",
-                                MessageBoxButtons.OK,
-                                MessageBoxIcon.Error);
+                MessageBox.Show("⚠️ Ошибка сканирования:\nДокумент не является корректной деталью или сборкой.",
+                                "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
 
             return Array.Empty<TreeNode>();
@@ -109,6 +144,12 @@ namespace ExportDXF_Kompas
                 bool isSheet = part.Detail && IsSheetMetal(part, out th, out bc);
                 bool hasUnfold = isSheet && HasUnfoldByParameters(part);
                 IFeature7 feature7 = (IFeature7)part;
+
+                if (part.FileName == null || part.FileName == "")
+                {
+                    MessageBox.Show($"⚠️ Похоже деталь не сохранена", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return null;
+                } 
 
                 PartInfo info = new PartInfo
                 {
@@ -338,10 +379,10 @@ namespace ExportDXF_Kompas
 
                     IAssociationViewElements ass = view as IAssociationViewElements;
                     bool CreateViewElements = settings.CreateViewElements;
-                    ass.CreateCentresMarkers = viewDesignationVisable;
-                    ass.CreateAxis = viewDesignationVisable;
-                    ass.CreateLinearCentres = viewDesignationVisable;
-                    ass.CreateCircularCentres = viewDesignationVisable;
+                    ass.CreateCentresMarkers = settings.CenterLinesVisible;
+                    ass.CreateAxis = settings.CenterLinesVisible;
+                    ass.CreateLinearCentres = settings.CenterLinesVisible;
+                    ass.CreateCircularCentres = settings.CenterLinesVisible;
                     ass.ProjectAllDesignations = CreateViewElements;
                     ass.HiddenObjectsVisible = CreateViewElements;
                     ass.ProjectAxis = CreateViewElements;
@@ -356,7 +397,6 @@ namespace ExportDXF_Kompas
                     ass.ProjectPoints = CreateViewElements;
                     ass.ProjectPositions = CreateViewElements;
                     ass.ProjectRoughs = CreateViewElements;
-                    ass.ProjectSketches = CreateViewElements;
                     ass.ProjectSpecRough = CreateViewElements;
                     ass.ProjectStandartElements = CreateViewElements;
                     ass.ProjectThreads = CreateViewElements;
@@ -429,6 +469,75 @@ namespace ExportDXF_Kompas
 
                     doc2D.ksRebuildDocument();
                     Console.WriteLine("✨ Готово! Линии объединены и перерисованы.");
+
+                    // убираем внешний диаметр на окружностях с общей точкой если нужно
+                    if (settings.RemoveOuterDiameter)
+                    {
+                        try
+                        {
+                            ksIterator iter2 = app5.GetIterator();
+                            iter2.ksCreateIterator(2, 0); // 2 = все графические объекты
+                            int objRef2 = iter2.ksMoveIterator("F");
+
+                            var circles = new List<CircleInfo>();
+
+                            var circleParam = (ksCircleParam)app5.GetParamStruct((short)StructType2DEnum.ko_CircleParam);
+                            var arcParam = (ksArcByAngleParam)app5.GetParamStruct((short)StructType2DEnum.ko_ArcByAngleParam);
+
+                            while (objRef2 != 0)
+                            {
+                                int type = doc2D.ksGetObjParam(objRef2, null, 0);
+
+                                if (type == 2) // окружность
+                                {
+                                    circleParam.Init();
+                                    doc2D.ksGetObjParam(objRef2, circleParam, (int)StructType2DEnum.ko_CircleParam);
+                                    circles.Add(new CircleInfo(objRef2, circleParam.xc, circleParam.yc, circleParam.rad));
+                                }
+                                else if (type == 3) // дуга
+                                {
+                                    arcParam.Init();
+                                    doc2D.ksGetObjParam(objRef2, arcParam, (int)StructType2DEnum.ko_ArcByAngleParam);
+                                    circles.Add(new CircleInfo(objRef2, arcParam.xc, arcParam.yc, arcParam.rad));
+                                }
+
+                                objRef2 = iter2.ksMoveIterator("N");
+                            }
+
+                            if (circles.Count > 0)
+                            {
+                                double tol = 0.01;
+
+                                var groups = circles
+                                    .GroupBy(c => new CenterKey(c.Xc, c.Yc, tol))
+                                    .ToList();
+
+                                foreach (var g in groups)
+                                {
+                                    var list = g.ToList();
+                                    if (list.Count <= 1)
+                                        continue;
+
+                                    double minR = list.Min(c => c.Radius);
+
+                                    foreach (var c in list)
+                                    {
+                                        if (c.Radius > minR + tol)
+                                        {
+                                            doc2D.ksDeleteObj(c.Id);
+                                        }
+                                    }
+                                }
+
+                                doc2D.ksRebuildDocument();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show("Ошибка удаления окружностей:\n" + ex.Message);
+                        }
+                    }
+
                 }
 
                 // === СОХРАНЯЕМ DXF ===
@@ -465,6 +574,44 @@ namespace ExportDXF_Kompas
 
         }
 
+        class CircleInfo
+        {
+            public int Id;
+            public double Xc, Yc, Radius;
+
+            public CircleInfo(int id, double xc, double yc, double r)
+            {
+                Id = id;
+                Xc = xc;
+                Yc = yc;
+                Radius = r;
+            }
+        }
+
+        class CenterKey
+        {
+            public double X, Y;
+            public double Tol;
+
+            public CenterKey(double x, double y, double tol)
+            {
+                X = x;
+                Y = y;
+                Tol = tol;
+            }
+
+            public override bool Equals(object obj)
+            {
+                if (obj is CenterKey k)
+                    return Math.Abs(X - k.X) < Tol && Math.Abs(Y - k.Y) < Tol;
+                return false;
+            }
+
+            public override int GetHashCode()
+            {
+                return 0; // чтобы всегда сравнивать Equals() вручную
+            }
+        }
         static List<LineSeg> MergeLines(List<LineSeg> input, double angleTolDeg = 0.5, double pointTol = 0.02)
         {
             List<LineSeg> lines = new(input);
