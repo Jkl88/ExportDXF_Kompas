@@ -20,7 +20,7 @@ using System.Security.Cryptography;
 
 namespace ExportDXF_Kompas
 {
-    public partial class MainForm: Form
+    public partial class MainForm: System.Windows.Forms.Form
     {
         private readonly string settingsPath = Path.Combine(
             System.Windows.Forms.Application.StartupPath, "settings.json");
@@ -308,6 +308,7 @@ namespace ExportDXF_Kompas
 
                         listBoxSaveSimple.Enabled = true;
                     }
+                    else listBoxSaveSimple.Items.Add("пусто");
 
                     // === Применяем шаблон по умолчанию (если задан) ===
                     if (!string.IsNullOrWhiteSpace(loaded.DefaultTemplateName))
@@ -474,12 +475,7 @@ namespace ExportDXF_Kompas
 
         private void button_Export_Click(object sender, EventArgs e) {
 
-            foreach (var t in settings.Templates)
-            {
-
-                if (t.IsDefault) ExportByTemplate(t);
-
-            }
+            Export_dxf();
 
         }
 
@@ -840,7 +836,7 @@ namespace ExportDXF_Kompas
         {
             if (listBoxSaveSimple.SelectedItem == null) return;
             string name = listBoxSaveSimple.SelectedItem.ToString();
-            if (name == "Пусто") return;
+            if (name == "пусто") return;
 
             var confirm = MessageBox.Show($"Удалить шаблон «{name}»?",
                                           "Подтверждение удаления",
@@ -859,7 +855,7 @@ namespace ExportDXF_Kompas
 
             if (listBoxSaveSimple.Items.Count == 0)
             {
-                listBoxSaveSimple.Items.Add("Пусто");
+                listBoxSaveSimple.Items.Add("пусто");
                 listBoxSaveSimple.Enabled = false;
             }
 

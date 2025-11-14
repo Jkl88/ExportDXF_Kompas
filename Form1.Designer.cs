@@ -694,6 +694,7 @@ namespace ExportDXF_Kompas
             // listBoxSaveSimple
             // 
             this.listBoxSaveSimple.ContextMenuStrip = this.contextMenuTemplates;
+            this.listBoxSaveSimple.DrawMode = System.Windows.Forms.DrawMode.OwnerDrawFixed;
             this.listBoxSaveSimple.FormattingEnabled = true;
             this.listBoxSaveSimple.Items.AddRange(new object[] {
             "Пусто"});
@@ -704,7 +705,6 @@ namespace ExportDXF_Kompas
             this.listBoxSaveSimple.DrawItem += new System.Windows.Forms.DrawItemEventHandler(this.listBoxSaveSimple_DrawItem);
             this.listBoxSaveSimple.MouseDoubleClick += new System.Windows.Forms.MouseEventHandler(this.listBoxSaveSimple_MouseDoubleClick);
             this.listBoxSaveSimple.MouseDown += new System.Windows.Forms.MouseEventHandler(this.listBoxSaveSimple_MouseDown);
-            this.listBoxSaveSimple.DrawMode = System.Windows.Forms.DrawMode.OwnerDrawFixed;
             // 
             // contextMenuTemplates
             // 
