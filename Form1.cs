@@ -1059,6 +1059,8 @@ namespace ExportDXF_Kompas
 
                 toolStripStatusLabel.Text = $"✅ Загрузка завершена ({treeParts.Nodes.Count} корневых узлов).";
                 toolStripStatusLabel.ForeColor = Color.Green;
+                checkedExport();
+                textNameFile_TextChanged();
 
             }
             finally
@@ -1123,6 +1125,5 @@ namespace ExportDXF_Kompas
                 }
             });
         }
-
     }
 }

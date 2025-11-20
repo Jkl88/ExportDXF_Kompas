@@ -131,7 +131,7 @@ namespace ExportDXF_Kompas
             this.выводDXFПоОригинальномуИмениToolStripMenuItem,
             this.выводToolStripMenuItem});
             this.contextMenuExport.Name = "contextMenuExport";
-            this.contextMenuExport.Size = new System.Drawing.Size(281, 48);
+            this.contextMenuExport.Size = new System.Drawing.Size(281, 70);
             this.contextMenuExport.Opening += new System.ComponentModel.CancelEventHandler(this.contextMenuExport_Opening);
             // 
             // выводDXFПоОригинальномуИмениToolStripMenuItem
@@ -154,7 +154,7 @@ namespace ExportDXF_Kompas
             // 
             this.пустоToolStripMenuItem.Enabled = false;
             this.пустоToolStripMenuItem.Name = "пустоToolStripMenuItem";
-            this.пустоToolStripMenuItem.Size = new System.Drawing.Size(105, 22);
+            this.пустоToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
             this.пустоToolStripMenuItem.Text = "пусто";
             // 
             // imageList
