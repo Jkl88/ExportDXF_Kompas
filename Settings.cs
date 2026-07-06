@@ -16,6 +16,7 @@ namespace ExportDXF_Kompas
         public bool Disignation { get; set; } = false;
         public bool CreateViewElements { get; set; } = false;
         public bool RemoveOuterDiameter { get; set; } = false;
+        public double MaxDiameterDiff { get; set; } = 5;
 
         public string Separator { get; set; } = "_";
         public string Sample { get; set; } = "{ИмяФайлаОриг}";

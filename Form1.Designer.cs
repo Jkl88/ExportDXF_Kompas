@@ -33,11 +33,11 @@ namespace ExportDXF_Kompas
             this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             this.treeParts = new System.Windows.Forms.TreeView();
+            this.imageList = new System.Windows.Forms.ImageList(this.components);
             this.contextMenuExport = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.выводDXFПоОригинальномуИмениToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.выводToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.пустоToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.imageList = new System.Windows.Forms.ImageList(this.components);
             this.butScan = new System.Windows.Forms.Button();
             this.toolStripStatusLabel = new System.Windows.Forms.ToolStripStatusLabel();
             this.toolStripProgressBar = new System.Windows.Forms.ToolStripProgressBar();
@@ -45,7 +45,9 @@ namespace ExportDXF_Kompas
             this.toolStripInfoLabel = new System.Windows.Forms.ToolStripStatusLabel();
             this.label_type = new System.Windows.Forms.Label();
             this.tabControl = new System.Windows.Forms.TabControl();
-            this.tabPage1 = new System.Windows.Forms.TabPage();
+            this.tabPage0 = new System.Windows.Forms.TabPage();
+            this.text_embodiment = new System.Windows.Forms.Label();
+            this.label_embodiment = new System.Windows.Forms.Label();
             this.buttonOpenPart = new System.Windows.Forms.Button();
             this.pictureBox = new System.Windows.Forms.PictureBox();
             this.buttonRef_view = new System.Windows.Forms.Button();
@@ -64,7 +66,15 @@ namespace ExportDXF_Kompas
             this.label_name = new System.Windows.Forms.Label();
             this.label_marking = new System.Windows.Forms.Label();
             this.text_type = new System.Windows.Forms.Label();
+            this.tabPage1 = new System.Windows.Forms.TabPage();
+            this.buttonTypeLine = new System.Windows.Forms.Button();
+            this.comboBoxTypeLine = new System.Windows.Forms.ComboBox();
+            this.labelTypeLine = new System.Windows.Forms.Label();
+            this.treeParticle = new System.Windows.Forms.TreeView();
+            this.btnScanParticle = new System.Windows.Forms.Button();
             this.tabPage2 = new System.Windows.Forms.TabPage();
+            this.numericUpDownMaxDiameterDiff = new System.Windows.Forms.NumericUpDown();
+            this.labelMaxDiameterDiff = new System.Windows.Forms.Label();
             this.checkBoxRemoveOuterDiameter = new System.Windows.Forms.CheckBox();
             this.checkBoxCreateViewElements = new System.Windows.Forms.CheckBox();
             this.checkBoxDisignation = new System.Windows.Forms.CheckBox();
@@ -102,9 +112,11 @@ namespace ExportDXF_Kompas
             this.contextMenuExport.SuspendLayout();
             this.statusStrip.SuspendLayout();
             this.tabControl.SuspendLayout();
-            this.tabPage1.SuspendLayout();
+            this.tabPage0.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox)).BeginInit();
+            this.tabPage1.SuspendLayout();
             this.tabPage2.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.numericUpDownMaxDiameterDiff)).BeginInit();
             this.tabPage3.SuspendLayout();
             this.contextMenuTemplates.SuspendLayout();
             this.SuspendLayout();
@@ -112,7 +124,6 @@ namespace ExportDXF_Kompas
             // treeParts
             // 
             this.treeParts.AllowDrop = true;
-            this.treeParts.ContextMenuStrip = this.contextMenuExport;
             this.treeParts.ImageIndex = 0;
             this.treeParts.ImageList = this.imageList;
             this.treeParts.Location = new System.Drawing.Point(1, 30);
@@ -125,13 +136,23 @@ namespace ExportDXF_Kompas
             this.treeParts.DragDrop += new System.Windows.Forms.DragEventHandler(this.treeParts_DragDrop);
             this.treeParts.DragEnter += new System.Windows.Forms.DragEventHandler(this.treeParts_DragEnter);
             // 
+            // imageList
+            // 
+            this.imageList.ImageStream = ((System.Windows.Forms.ImageListStreamer)(resources.GetObject("imageList.ImageStream")));
+            this.imageList.TransparentColor = System.Drawing.Color.Transparent;
+            this.imageList.Images.SetKeyName(0, "assembly");
+            this.imageList.Images.SetKeyName(1, "bolt");
+            this.imageList.Images.SetKeyName(2, "part");
+            this.imageList.Images.SetKeyName(3, "sheet");
+            this.imageList.Images.SetKeyName(4, "sheetUnfold");
+            // 
             // contextMenuExport
             // 
             this.contextMenuExport.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.выводDXFПоОригинальномуИмениToolStripMenuItem,
             this.выводToolStripMenuItem});
             this.contextMenuExport.Name = "contextMenuExport";
-            this.contextMenuExport.Size = new System.Drawing.Size(281, 70);
+            this.contextMenuExport.Size = new System.Drawing.Size(281, 48);
             this.contextMenuExport.Opening += new System.ComponentModel.CancelEventHandler(this.contextMenuExport_Opening);
             // 
             // выводDXFПоОригинальномуИмениToolStripMenuItem
@@ -154,18 +175,8 @@ namespace ExportDXF_Kompas
             // 
             this.пустоToolStripMenuItem.Enabled = false;
             this.пустоToolStripMenuItem.Name = "пустоToolStripMenuItem";
-            this.пустоToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.пустоToolStripMenuItem.Size = new System.Drawing.Size(105, 22);
             this.пустоToolStripMenuItem.Text = "пусто";
-            // 
-            // imageList
-            // 
-            this.imageList.ImageStream = ((System.Windows.Forms.ImageListStreamer)(resources.GetObject("imageList.ImageStream")));
-            this.imageList.TransparentColor = System.Drawing.Color.Transparent;
-            this.imageList.Images.SetKeyName(0, "assembly");
-            this.imageList.Images.SetKeyName(1, "bolt");
-            this.imageList.Images.SetKeyName(2, "part");
-            this.imageList.Images.SetKeyName(3, "sheet");
-            this.imageList.Images.SetKeyName(4, "sheetUnfold");
             // 
             // butScan
             // 
@@ -211,7 +222,7 @@ namespace ExportDXF_Kompas
             // label_type
             // 
             this.label_type.AutoSize = true;
-            this.label_type.Location = new System.Drawing.Point(407, 30);
+            this.label_type.Location = new System.Drawing.Point(405, 4);
             this.label_type.Name = "label_type";
             this.label_type.Size = new System.Drawing.Size(29, 13);
             this.label_type.TabIndex = 5;
@@ -220,7 +231,8 @@ namespace ExportDXF_Kompas
             // 
             // tabControl
             // 
-            this.tabControl.Controls.Add(this.tabPage1);
+            this.tabControl.Controls.Add(this.tabPage0);
+            //this.tabControl.Controls.Add(this.tabPage1);
             this.tabControl.Controls.Add(this.tabPage2);
             this.tabControl.Controls.Add(this.tabPage3);
             this.tabControl.Location = new System.Drawing.Point(0, 33);
@@ -229,36 +241,58 @@ namespace ExportDXF_Kompas
             this.tabControl.Size = new System.Drawing.Size(800, 376);
             this.tabControl.TabIndex = 6;
             // 
-            // tabPage1
+            // tabPage0
             // 
-            this.tabPage1.Controls.Add(this.buttonOpenPart);
-            this.tabPage1.Controls.Add(this.pictureBox);
-            this.tabPage1.Controls.Add(this.buttonRef_view);
-            this.tabPage1.Controls.Add(this.label_Info);
-            this.tabPage1.Controls.Add(this.combo_view);
-            this.tabPage1.Controls.Add(this.flagExportDXF);
-            this.tabPage1.Controls.Add(this.label_view);
-            this.tabPage1.Controls.Add(this.text_bendCount);
-            this.tabPage1.Controls.Add(this.text_thickness);
-            this.tabPage1.Controls.Add(this.label_bendCount);
-            this.tabPage1.Controls.Add(this.text_count);
-            this.tabPage1.Controls.Add(this.label_thickness);
-            this.tabPage1.Controls.Add(this.text_name);
-            this.tabPage1.Controls.Add(this.label_count);
-            this.tabPage1.Controls.Add(this.text_marking);
-            this.tabPage1.Controls.Add(this.label_name);
-            this.tabPage1.Controls.Add(this.label_marking);
-            this.tabPage1.Controls.Add(this.text_type);
-            this.tabPage1.Controls.Add(this.treeParts);
-            this.tabPage1.Controls.Add(this.label_type);
-            this.tabPage1.Controls.Add(this.butScan);
-            this.tabPage1.Location = new System.Drawing.Point(4, 22);
-            this.tabPage1.Name = "tabPage1";
-            this.tabPage1.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage1.Size = new System.Drawing.Size(792, 350);
-            this.tabPage1.TabIndex = 0;
-            this.tabPage1.Text = "📐 Список деталей";
-            this.tabPage1.UseVisualStyleBackColor = true;
+            this.tabPage0.Controls.Add(this.text_embodiment);
+            this.tabPage0.Controls.Add(this.label_embodiment);
+            this.tabPage0.Controls.Add(this.buttonOpenPart);
+            this.tabPage0.Controls.Add(this.pictureBox);
+            this.tabPage0.Controls.Add(this.buttonRef_view);
+            this.tabPage0.Controls.Add(this.label_Info);
+            this.tabPage0.Controls.Add(this.combo_view);
+            this.tabPage0.Controls.Add(this.flagExportDXF);
+            this.tabPage0.Controls.Add(this.label_view);
+            this.tabPage0.Controls.Add(this.text_bendCount);
+            this.tabPage0.Controls.Add(this.text_thickness);
+            this.tabPage0.Controls.Add(this.label_bendCount);
+            this.tabPage0.Controls.Add(this.text_count);
+            this.tabPage0.Controls.Add(this.label_thickness);
+            this.tabPage0.Controls.Add(this.text_name);
+            this.tabPage0.Controls.Add(this.label_count);
+            this.tabPage0.Controls.Add(this.text_marking);
+            this.tabPage0.Controls.Add(this.label_name);
+            this.tabPage0.Controls.Add(this.label_marking);
+            this.tabPage0.Controls.Add(this.text_type);
+            this.tabPage0.Controls.Add(this.treeParts);
+            this.tabPage0.Controls.Add(this.label_type);
+            this.tabPage0.Controls.Add(this.butScan);
+            this.tabPage0.Location = new System.Drawing.Point(4, 22);
+            this.tabPage0.Name = "tabPage0";
+            this.tabPage0.Padding = new System.Windows.Forms.Padding(3);
+            this.tabPage0.Size = new System.Drawing.Size(792, 350);
+            this.tabPage0.TabIndex = 0;
+            this.tabPage0.Text = "📐 Список деталей";
+            this.tabPage0.UseVisualStyleBackColor = true;
+            // 
+            // text_embodiment
+            // 
+            this.text_embodiment.AutoSize = true;
+            this.text_embodiment.Location = new System.Drawing.Point(525, 82);
+            this.text_embodiment.Name = "text_embodiment";
+            this.text_embodiment.Size = new System.Drawing.Size(72, 13);
+            this.text_embodiment.TabIndex = 13;
+            this.text_embodiment.Text = "Исполнение:";
+            this.text_embodiment.Visible = false;
+            // 
+            // label_embodiment
+            // 
+            this.label_embodiment.AutoSize = true;
+            this.label_embodiment.Location = new System.Drawing.Point(408, 82);
+            this.label_embodiment.Name = "label_embodiment";
+            this.label_embodiment.Size = new System.Drawing.Size(72, 13);
+            this.label_embodiment.TabIndex = 14;
+            this.label_embodiment.Text = "Исполнение:";
+            this.label_embodiment.Visible = false;
             // 
             // buttonOpenPart
             // 
@@ -388,7 +422,7 @@ namespace ExportDXF_Kompas
             // text_name
             // 
             this.text_name.AutoSize = true;
-            this.text_name.Location = new System.Drawing.Point(525, 56);
+            this.text_name.Location = new System.Drawing.Point(525, 30);
             this.text_name.Name = "text_name";
             this.text_name.Size = new System.Drawing.Size(32, 13);
             this.text_name.TabIndex = 6;
@@ -408,7 +442,7 @@ namespace ExportDXF_Kompas
             // text_marking
             // 
             this.text_marking.AutoSize = true;
-            this.text_marking.Location = new System.Drawing.Point(525, 82);
+            this.text_marking.Location = new System.Drawing.Point(525, 56);
             this.text_marking.Name = "text_marking";
             this.text_marking.Size = new System.Drawing.Size(77, 13);
             this.text_marking.TabIndex = 6;
@@ -418,7 +452,7 @@ namespace ExportDXF_Kompas
             // label_name
             // 
             this.label_name.AutoSize = true;
-            this.label_name.Location = new System.Drawing.Point(410, 56);
+            this.label_name.Location = new System.Drawing.Point(408, 30);
             this.label_name.Name = "label_name";
             this.label_name.Size = new System.Drawing.Size(32, 13);
             this.label_name.TabIndex = 6;
@@ -428,7 +462,7 @@ namespace ExportDXF_Kompas
             // label_marking
             // 
             this.label_marking.AutoSize = true;
-            this.label_marking.Location = new System.Drawing.Point(410, 82);
+            this.label_marking.Location = new System.Drawing.Point(408, 56);
             this.label_marking.Name = "label_marking";
             this.label_marking.Size = new System.Drawing.Size(77, 13);
             this.label_marking.TabIndex = 6;
@@ -438,15 +472,86 @@ namespace ExportDXF_Kompas
             // text_type
             // 
             this.text_type.AutoSize = true;
-            this.text_type.Location = new System.Drawing.Point(525, 30);
+            this.text_type.Location = new System.Drawing.Point(525, 4);
             this.text_type.Name = "text_type";
             this.text_type.Size = new System.Drawing.Size(29, 13);
             this.text_type.TabIndex = 5;
             this.text_type.Text = "Тип:";
             this.text_type.Visible = false;
             // 
+            // tabPage1
+            // 
+            this.tabPage1.Controls.Add(this.buttonTypeLine);
+            this.tabPage1.Controls.Add(this.comboBoxTypeLine);
+            this.tabPage1.Controls.Add(this.labelTypeLine);
+            this.tabPage1.Controls.Add(this.treeParticle);
+            this.tabPage1.Controls.Add(this.btnScanParticle);
+            this.tabPage1.Location = new System.Drawing.Point(4, 22);
+            this.tabPage1.Name = "tabPage1";
+            this.tabPage1.Padding = new System.Windows.Forms.Padding(3);
+            this.tabPage1.Size = new System.Drawing.Size(792, 350);
+            this.tabPage1.TabIndex = 3;
+            this.tabPage1.Text = "✂️ Разделение деталей";
+            this.tabPage1.UseVisualStyleBackColor = true;
+            // 
+            // buttonTypeLine
+            // 
+            this.buttonTypeLine.FlatStyle = System.Windows.Forms.FlatStyle.System;
+            this.buttonTypeLine.Font = new System.Drawing.Font("Microsoft Sans Serif", 17F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
+            this.buttonTypeLine.Location = new System.Drawing.Point(706, 29);
+            this.buttonTypeLine.Margin = new System.Windows.Forms.Padding(0);
+            this.buttonTypeLine.Name = "buttonTypeLine";
+            this.buttonTypeLine.Size = new System.Drawing.Size(26, 23);
+            this.buttonTypeLine.TabIndex = 13;
+            this.buttonTypeLine.Text = "⟳";
+            this.buttonTypeLine.UseVisualStyleBackColor = true;
+            this.buttonTypeLine.Visible = false;
+            // 
+            // comboBoxTypeLine
+            // 
+            this.comboBoxTypeLine.Enabled = false;
+            this.comboBoxTypeLine.FormattingEnabled = true;
+            this.comboBoxTypeLine.Location = new System.Drawing.Point(568, 30);
+            this.comboBoxTypeLine.Name = "comboBoxTypeLine";
+            this.comboBoxTypeLine.Size = new System.Drawing.Size(135, 21);
+            this.comboBoxTypeLine.TabIndex = 12;
+            this.comboBoxTypeLine.Visible = false;
+            // 
+            // labelTypeLine
+            // 
+            this.labelTypeLine.AutoSize = true;
+            this.labelTypeLine.Location = new System.Drawing.Point(450, 33);
+            this.labelTypeLine.Name = "labelTypeLine";
+            this.labelTypeLine.Size = new System.Drawing.Size(108, 13);
+            this.labelTypeLine.TabIndex = 11;
+            this.labelTypeLine.Text = "Тип линии границы:";
+            this.labelTypeLine.Visible = false;
+            // 
+            // treeParticle
+            // 
+            this.treeParticle.AllowDrop = true;
+            this.treeParticle.ImageIndex = 0;
+            this.treeParticle.ImageList = this.imageList;
+            this.treeParticle.Location = new System.Drawing.Point(1, 30);
+            this.treeParticle.Name = "treeParticle";
+            this.treeParticle.SelectedImageIndex = 0;
+            this.treeParticle.Size = new System.Drawing.Size(400, 320);
+            this.treeParticle.TabIndex = 3;
+            // 
+            // btnScanParticle
+            // 
+            this.btnScanParticle.Location = new System.Drawing.Point(8, 3);
+            this.btnScanParticle.Name = "btnScanParticle";
+            this.btnScanParticle.Size = new System.Drawing.Size(86, 23);
+            this.btnScanParticle.TabIndex = 4;
+            this.btnScanParticle.Text = "Сканировать";
+            this.btnScanParticle.UseVisualStyleBackColor = true;
+            this.btnScanParticle.Click += new System.EventHandler(this.btnScanParticle_Click);
+            // 
             // tabPage2
             // 
+            this.tabPage2.Controls.Add(this.numericUpDownMaxDiameterDiff);
+            this.tabPage2.Controls.Add(this.labelMaxDiameterDiff);
             this.tabPage2.Controls.Add(this.checkBoxRemoveOuterDiameter);
             this.tabPage2.Controls.Add(this.checkBoxCreateViewElements);
             this.tabPage2.Controls.Add(this.checkBoxDisignation);
@@ -476,6 +581,41 @@ namespace ExportDXF_Kompas
             this.checkBoxRemoveOuterDiameter.Text = "Убрать внешний диаметр у зенковок";
             this.checkBoxRemoveOuterDiameter.UseVisualStyleBackColor = true;
             this.checkBoxRemoveOuterDiameter.CheckedChanged += new System.EventHandler(this.checkBox_CheckedChanged);
+            // 
+            // labelMaxDiameterDiff
+            // 
+            this.labelMaxDiameterDiff.AutoSize = true;
+            this.labelMaxDiameterDiff.Enabled = false;
+            this.labelMaxDiameterDiff.Location = new System.Drawing.Point(162, 270);
+            this.labelMaxDiameterDiff.Name = "labelMaxDiameterDiff";
+            this.labelMaxDiameterDiff.Size = new System.Drawing.Size(182, 13);
+            this.labelMaxDiameterDiff.TabIndex = 4;
+            this.labelMaxDiameterDiff.Text = "Максимальная разница диаметров:";
+            // 
+            // numericUpDownMaxDiameterDiff
+            // 
+            this.numericUpDownMaxDiameterDiff.DecimalPlaces = 1;
+            this.numericUpDownMaxDiameterDiff.Enabled = false;
+            this.numericUpDownMaxDiameterDiff.Increment = new decimal(new int[] {
+            5,
+            0,
+            0,
+            65536});
+            this.numericUpDownMaxDiameterDiff.Location = new System.Drawing.Point(350, 268);
+            this.numericUpDownMaxDiameterDiff.Maximum = new decimal(new int[] {
+            1000,
+            0,
+            0,
+            0});
+            this.numericUpDownMaxDiameterDiff.Name = "numericUpDownMaxDiameterDiff";
+            this.numericUpDownMaxDiameterDiff.Size = new System.Drawing.Size(60, 20);
+            this.numericUpDownMaxDiameterDiff.TabIndex = 5;
+            this.numericUpDownMaxDiameterDiff.Value = new decimal(new int[] {
+            50,
+            0,
+            0,
+            65536});
+            this.numericUpDownMaxDiameterDiff.ValueChanged += new System.EventHandler(this.numericUpDownMaxDiameterDiff_ValueChanged);
             // 
             // checkBoxCreateViewElements
             // 
@@ -828,16 +968,19 @@ namespace ExportDXF_Kompas
             this.KeyPreview = true;
             this.MaximizeBox = false;
             this.Name = "MainForm";
-            this.Text = "ExportDXF - Компас";
+            this.Text = "ExportDXF - Компас  - v1.1.5";
             this.contextMenuExport.ResumeLayout(false);
             this.statusStrip.ResumeLayout(false);
             this.statusStrip.PerformLayout();
             this.tabControl.ResumeLayout(false);
+            this.tabPage0.ResumeLayout(false);
+            this.tabPage0.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.pictureBox)).EndInit();
             this.tabPage1.ResumeLayout(false);
             this.tabPage1.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.pictureBox)).EndInit();
             this.tabPage2.ResumeLayout(false);
             this.tabPage2.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.numericUpDownMaxDiameterDiff)).EndInit();
             this.tabPage3.ResumeLayout(false);
             this.tabPage3.PerformLayout();
             this.contextMenuTemplates.ResumeLayout(false);
@@ -855,7 +998,7 @@ namespace ExportDXF_Kompas
         private System.Windows.Forms.StatusStrip statusStrip;
         private System.Windows.Forms.Label label_type;
         private System.Windows.Forms.TabControl tabControl;
-        private System.Windows.Forms.TabPage tabPage1;
+        private System.Windows.Forms.TabPage tabPage0;
         private System.Windows.Forms.TabPage tabPage2;
         private System.Windows.Forms.ToolStripMenuItem выводDXFToolStripMenuItem;
         private System.Windows.Forms.Button button_Export;
@@ -915,5 +1058,15 @@ namespace ExportDXF_Kompas
         private System.Windows.Forms.ToolStripMenuItem пустоToolStripMenuItem;
         private System.Windows.Forms.ToolStripStatusLabel toolStripInfoLabel;
         private System.Windows.Forms.CheckBox checkBoxRemoveOuterDiameter;
+        private System.Windows.Forms.Label labelMaxDiameterDiff;
+        private System.Windows.Forms.NumericUpDown numericUpDownMaxDiameterDiff;
+        private System.Windows.Forms.Label text_embodiment;
+        private System.Windows.Forms.Label label_embodiment;
+        private System.Windows.Forms.TabPage tabPage1;
+        private System.Windows.Forms.Button buttonTypeLine;
+        private System.Windows.Forms.ComboBox comboBoxTypeLine;
+        private System.Windows.Forms.Label labelTypeLine;
+        private System.Windows.Forms.TreeView treeParticle;
+        private System.Windows.Forms.Button btnScanParticle;
     }
 }

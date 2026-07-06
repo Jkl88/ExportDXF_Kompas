@@ -28,6 +28,7 @@ namespace ExportDXF_Kompas
         private readonly Settings settings;
         private readonly Inform inform = new Inform();
         private bool kompasConnect = false;
+        private bool contextFromNode = false;
         public MainForm()
         {
             
@@ -40,7 +41,7 @@ namespace ExportDXF_Kompas
             textSeparator.TabIndexChanged += new System.EventHandler(this.textNameFile_TextChanged);
             textBoxReplaceOut.TabIndexChanged += new System.EventHandler(this.textNameFile_TextChanged);
             textBoxReplaceIn.TabIndexChanged += new System.EventHandler(this.textNameFile_TextChanged);
-            kompas = new KompasService(settings, inform);
+            kompas = new KompasService(settings, inform, contextMenuExport);
             kompasConnect = kompas.Connect();
             toolStripStatusLabel.Text = kompasConnect ? "✅ Подключено к КОМПАС" : "❌ КОМПАС не запущен";
             toolStripStatusLabel.ForeColor = kompasConnect ? Color.Green : Color.Red;
@@ -95,6 +96,7 @@ namespace ExportDXF_Kompas
 
         private void treeParts_NodeMouseClick(object sender, TreeNodeMouseClickEventArgs e)
         {
+            if (e.Button == MouseButtons.Right) { treeParts.SelectedNode = e.Node; }
             var part = e.Node.Tag as PartInfo;
             var node = e.Node;
 
@@ -109,6 +111,8 @@ namespace ExportDXF_Kompas
             combo_view.Items.Clear(); combo_view.Items.AddRange(part.Projections.ToArray());
             label_view.Visible = !part.Assembly; combo_view.Visible = !part.Assembly; combo_view.Text = part.View; combo_view.Enabled = combo_view.Items.Count > 0;
             buttonRef_view.Visible = !part.Assembly; buttonRef_view.Tag = part;
+
+            label_embodiment.Visible = part.EmbodimentIndex > 0; text_embodiment.Visible = part.EmbodimentIndex > 0; text_embodiment.Text = part.EmbodimentIndex.ToString();
 
             int hwnd = pictureBox.Handle.ToInt32();
             kompas.getApp5().ksDrawKompasDocument(hwnd, part.Part.FileName);
@@ -229,6 +233,8 @@ namespace ExportDXF_Kompas
                     case "checkBoxBreakLink":
                         settings.BreakLink = check.Checked;
                         checkBoxRemoveOuterDiameter.Enabled = check.Checked;
+                        labelMaxDiameterDiff.Enabled = check.Checked;
+                        numericUpDownMaxDiameterDiff.Enabled = check.Checked;
                         break;
 
                     case "checkBoxCenterLinesVisible":
@@ -259,16 +265,28 @@ namespace ExportDXF_Kompas
             }
         }
 
+        private void numericUpDownMaxDiameterDiff_ValueChanged(object sender, EventArgs e)
+        {
+            if (settings == null) return;
+            settings.MaxDiameterDiff = (double)numericUpDownMaxDiameterDiff.Value;
+            SaveSettings();
+        }
+
         private void setCheckBoxs()
         {
             checkBoxBreakLink.Checked = settings.BreakLink;
             checkBoxRemoveOuterDiameter.Enabled = settings.BreakLink;
+            labelMaxDiameterDiff.Enabled = settings.BreakLink;
+            numericUpDownMaxDiameterDiff.Enabled = settings.BreakLink;
             checkBoxCenterLinesVisible.Checked = settings.CenterLinesVisible;
             checkBoxBendsLinesVisible.Checked = settings.BendsLinesVisible;
             checkBoxBreakLinesVisible.Checked = settings.BreakLinesVisible;
             checkBoxDisignation.Checked = settings.Disignation;
             checkBoxCreateViewElements.Checked = settings.CreateViewElements;
             checkBoxRemoveOuterDiameter.Checked = settings.RemoveOuterDiameter;
+            numericUpDownMaxDiameterDiff.Value = (decimal)Math.Max(
+                (double)numericUpDownMaxDiameterDiff.Minimum,
+                Math.Min((double)numericUpDownMaxDiameterDiff.Maximum, settings.MaxDiameterDiff));
 
         }
         private Settings LoadSettings()
@@ -294,6 +312,9 @@ namespace ExportDXF_Kompas
                     checkBoxDisignation.Checked = loaded.Disignation;
                     checkBoxCreateViewElements.Checked = loaded.CreateViewElements;
                     checkBoxRemoveOuterDiameter.Checked = loaded.RemoveOuterDiameter;
+                    numericUpDownMaxDiameterDiff.Value = (decimal)Math.Max(
+                        (double)numericUpDownMaxDiameterDiff.Minimum,
+                        Math.Min((double)numericUpDownMaxDiameterDiff.Maximum, loaded.MaxDiameterDiff));
 
                     // === Загружаем шаблоны (если есть) ===
                     listBoxSaveSimple.Items.Clear();
@@ -351,6 +372,7 @@ namespace ExportDXF_Kompas
                 BreakLinesVisible = false,
                 Disignation = false,
                 CreateViewElements = false,
+                MaxDiameterDiff = 5,
                 Separator = "_",
                 Sample = "{ИмяФайлаОриг}"
             };
@@ -484,11 +506,21 @@ namespace ExportDXF_Kompas
             
             try
             {
-                // собираем все узлы с PartInfo рекурсивно
-                var allNodes = GetAllNodes(treeParts.Nodes);
-                var nodes = allNodes
-                    .Where(n => n.Tag is PartInfo info && info.Selected)
-                    .ToList();
+                List<TreeNode> nodes;
+
+                if (contextFromNode)
+                {
+                    // ⚡ Экспорт только одной ноды, по которой вызвали меню
+                    nodes = new List<TreeNode> { treeParts.SelectedNode };
+                }
+                else
+                {
+                    // ⚡ Стандартная логика — экспорт всех выбранных элементов
+                    var allNodes = GetAllNodes(treeParts.Nodes);
+                    nodes = allNodes
+                        .Where(n => n.Tag is PartInfo info && info.Selected)
+                        .ToList();
+                }
 
                 if (nodes.Count == 0)
                 {
@@ -951,13 +983,8 @@ namespace ExportDXF_Kompas
 
         private void contextMenuExport_Opening(object sender, CancelEventArgs e)
         {
-            if (contextMenuExport.SourceControl == treeParts)
-            {
-                // если вызвали на дереве — работаем с выбранным узлом
-                var node = treeParts.GetNodeAt(treeParts.PointToClient(Cursor.Position));
-                if (node != null)
-                    treeParts.SelectedNode = node;
-            }
+            if (contextMenuExport.SourceControl == treeParts) contextFromNode = true;
+            else contextFromNode = false;
         }
 
         private void treeParts_DragEnter(object sender, DragEventArgs e)
@@ -1124,6 +1151,39 @@ namespace ExportDXF_Kompas
                     System.Threading.Thread.Sleep(200); // частота обновления 5 раз в секунду
                 }
             });
+        }
+
+        async private void btnScanParticle_Click(object sender, EventArgs e)
+        {
+            inform.Info = "";
+            inform.Warning = "";
+
+            toolStripStatusLabel.Text = "🔄 Сканирование...";
+            toolStripStatusLabel.ForeColor = Color.Blue;
+            butScan.Enabled = false;
+            treeParticle.Nodes.Clear();
+
+            // включаем анимацию
+            toolStripProgressBar.Style = ProgressBarStyle.Marquee;
+            toolStripProgressBar.MarqueeAnimationSpeed = 30;
+
+            // теперь можно обновлять UI
+            var nodes = await Task.Run(() => kompas.ScanParticle());
+            treeParticle.Nodes.AddRange(nodes);
+
+            // выключаем анимацию
+            toolStripProgressBar.Style = ProgressBarStyle.Blocks;
+            toolStripProgressBar.MarqueeAnimationSpeed = 0;
+
+            toolStripStatusLabel.Text = "✅ Сканирование завершено";
+            toolStripStatusLabel.ForeColor = Color.Green;
+            butScan.Enabled = true;
+            if (nodes.Count() == 0)
+            {
+                toolStripStatusLabel.Text = "❌ Сканирование не удачно";
+                toolStripStatusLabel.ForeColor = Color.Red;
+                return;
+            }
         }
     }
 }

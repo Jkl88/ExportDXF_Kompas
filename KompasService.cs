@@ -9,18 +9,21 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Numerics;
 using System.Runtime;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Forms;
 using System.Xml.Linq;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace ExportDXF_Kompas
 {
     public class KompasService
     {
-        
+        private ContextMenuStrip contextMenuExport = null;
         private IApplication app7;
         private KompasObject app5;
         private readonly Settings settings;
@@ -30,7 +33,7 @@ namespace ExportDXF_Kompas
         public IApplication getApp() { return app7; }
         public KompasObject getApp5() { return app5; }
 
-        public KompasService(Settings _settings, Inform _inform) { settings = _settings; inform = _inform; }
+        public KompasService(Settings _settings, Inform _inform, ContextMenuStrip _contextMenuExport) { settings = _settings; inform = _inform; contextMenuExport = _contextMenuExport; }
 
         public bool StartApp() {
             try
@@ -80,8 +83,8 @@ namespace ExportDXF_Kompas
                 {
                     var rootInfo = GetPart(topPart);
                     var rootNode = new TreeNode($"{rootInfo.Marking}-{rootInfo.Name}") { Tag = rootInfo };
-                    rootNode.BackColor = setColor(rootInfo);
-                    rootNode.ImageKey = rootNode.SelectedImageKey = "assembly";
+                    rootInfo.Assembly = true;
+                    setContentNods(rootNode);
 
                     BuildTree(topPart, rootNode);
                     return new[] { rootNode };
@@ -96,7 +99,7 @@ namespace ExportDXF_Kompas
                 if (embCount > 1)
                 {
                     // Получаем базовое исполнение и формируем root как "сборку"
-                    var baseInfo = GetPart(embMgr.Embodiment[0].Part, 0);                    
+                    var baseInfo = GetPart(embMgr.Embodiment[0].Part);                    
 
                     var rootNode = new TreeNode($"{baseInfo.Marking}-{baseInfo.Name}")
                     {
@@ -104,23 +107,21 @@ namespace ExportDXF_Kompas
                     };
 
                     // === РУТ ВЕДЁТ СЕБЯ КАК СБОРКА ===                    
-                    rootNode.ImageKey = rootNode.SelectedImageKey = icons(baseInfo);
                     baseInfo.Assembly = true;
                     baseInfo.Selected = false;
-                    rootNode.BackColor = setColor(baseInfo);
+                    setContentNods(rootNode);
 
                     // Добавляем исполнения
                     for (int i = 0; i < embCount; i++)
                     {
-                        var info = GetPart(embMgr.Embodiment[i].Part, i);
+                        var info = GetPart(embMgr.Embodiment[i].Part);
                         if (info == null) continue;
 
                         var node = new TreeNode(checkBoxStr(info) + $"{info.Marking}-{info.Name}")
                         {
                             Tag = info
                         };
-                        node.BackColor = setColor(info);
-                        node.ImageKey = node.SelectedImageKey = icons(info);
+                        setContentNods(node);
 
                         rootNode.Nodes.Add(node);
                     }
@@ -129,12 +130,11 @@ namespace ExportDXF_Kompas
                 }
 
                 // === Если только 1 исполнение (обычная деталь) ===
-                var singleInfo = GetPart(topPart, 0);
+                var singleInfo = GetPart(topPart);
                 if (singleInfo != null)
                 {
                     var n = new TreeNode(checkBoxStr(singleInfo) + $"{singleInfo.Marking}-{singleInfo.Name}") { Tag = singleInfo };
-                    n.BackColor = setColor(singleInfo);
-                    n.ImageKey = n.SelectedImageKey = icons(singleInfo);
+                    setContentNods(n);                    
                     return new[] { n };
                 }
             }
@@ -147,7 +147,7 @@ namespace ExportDXF_Kompas
             return Array.Empty<TreeNode>();
         }
 
-        private PartInfo GetPart(IPart7 part, int embodimentIndex = 0) {
+        private PartInfo GetPart(IPart7 part) {
             try
             {
                 double th = 0; int bc = 0;
@@ -161,7 +161,12 @@ namespace ExportDXF_Kompas
                 {
                     MessageBox.Show($"⚠️ Похоже деталь не сохранена", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return null;
-                } 
+                }
+
+                var embMng = part as IEmbodimentsManager;
+                var treeEmb = embMng.GetEmbodimentsTree(ksVariantMarkingTypeEnum.ksVMFullMarking, false, false);
+
+                var embodimentIndex = Array.IndexOf(treeEmb, marking);
 
                 PartInfo info = new PartInfo
                 {
@@ -223,7 +228,15 @@ namespace ExportDXF_Kompas
                         {
                             //проверяем тип компонента объекта
                             // 11001 - соответствует (?) сгибу
-                            if (sFeat.type == 11001) { _isSheetMetal = true;  bendCount++; }
+                            string featName = sFeat is null ? null : (string)sFeat.Name;
+
+                            if (sFeat.type == 11001 &&
+                                !string.IsNullOrEmpty(featName) &&
+                                featName.Contains("Сгиб"))
+                            {
+                                _isSheetMetal = true;
+                                bendCount++;
+                            }
                         }
                     }
                 }
@@ -287,15 +300,13 @@ namespace ExportDXF_Kompas
                         var existingInfo = existingNode.Tag as PartInfo;
                         existingInfo.Count++;
                         existingNode.Text = (checkBoxStr(existingInfo)) + $"{existingInfo.Marking}-{existingInfo.Name} ×{existingInfo.Count}";
-                        existingNode.BackColor = setColor(existingInfo);
-                        existingNode.ImageKey = existingNode.SelectedImageKey = icons(existingInfo);
+                        setContentNods(existingNode);
                     }
                     else
                     {
                         // создаём новый узел
                         var node = new TreeNode(checkBoxStr(info) + $"{info.Marking}-{info.Name}") { Tag = info };
-                        node.BackColor = setColor(info);
-                        node.ImageKey = node.SelectedImageKey = icons(info);
+                        setContentNods(node);
                         parentNode.Nodes.Add(node);
 
                         // если это подсборка — углубляемся
@@ -314,8 +325,28 @@ namespace ExportDXF_Kompas
         }
 
         private string checkBoxStr(PartInfo part) { return !part.Assembly ? (part.Selected ? "✅ " : "❌ ") : ""; }
-        private string icons(PartInfo info) { return !info.Assembly ? (!info.Standart ? (info.IsSheet ? (info.HasUnfold ? "sheetUnfold" : "sheet") : "part") : "bolt") : "assembly"; }
-        private Color setColor(PartInfo info) { return !info.Assembly ? (!info.Standart ? (info.IsSheet ? (info.HasUnfold ? Color.GreenYellow : Color.Thistle) : Color.Coral) : Color.Beige) : Color.Turquoise; }
+        //private string icons(PartInfo info) { return !info.Assembly ? (!info.Standart ? (info.IsSheet ? (info.HasUnfold ? "sheetUnfold" : "sheet") : "part") : "bolt") : "assembly"; }
+        
+        
+        private void setContentNods(TreeNode node) {
+
+            PartInfo part = (PartInfo)node.Tag;
+            (string img, Color color, ContextMenuStrip menu) = part switch
+            {
+                { Assembly: true }                  => ("assembly", Color.Turquoise, null),
+                { Standart: true }                  => ("bolt", Color.Beige, null),
+                { IsSheet: true, HasUnfold: true }  => ("sheetUnfold", Color.GreenYellow, contextMenuExport),
+                { IsSheet: true }                   => ("sheet", Color.Thistle, contextMenuExport),
+                _                                   => ("part", Color.Coral, contextMenuExport)
+            };
+
+            node.ImageKey = node.SelectedImageKey = img;
+            node.BackColor = color;
+            node.ContextMenuStrip = menu;
+        }
+
+
+        //private Color setColor(PartInfo info) { return !info.Assembly ? (!info.Standart ? (info.IsSheet ? (info.HasUnfold ? Color.GreenYellow : Color.Thistle) : Color.Coral) : Color.Beige) : Color.Turquoise; }
         private string getType(PartInfo info) { return !info.Assembly ? (!info.Standart ? (info.IsSheet ? (info.HasUnfold ? "Листовая деталь" : "Листовая деталь") : "Деталь") : "Стандартное изделие") : "Сборка"; }
 
         public bool ExportToDxf(PartInfo part, int embIndex, string outFile)
@@ -323,6 +354,8 @@ namespace ExportDXF_Kompas
             ksDocumentParam param = (ksDocumentParam)app5.GetParamStruct((short)StructType2DEnum.ko_DocumentParam);
             param.type = 1;
             param.Init();
+
+            app7.HideMessage = ksHideMessageEnum.ksHideMessageYes;
 
             ksDocument2D doc2D = (ksDocument2D)app5.Document2D();
             doc2D.ksCreateDocument(param);
@@ -334,6 +367,9 @@ namespace ExportDXF_Kompas
             if (string.IsNullOrEmpty(srcFile) || !File.Exists(srcFile)) return false;
 
             var mgr = kompasDoc2D.ViewsAndLayersManager;
+            var draw = (IDrawingDocument)kompasDoc2D;
+            var technicalDemand = draw.TechnicalDemand;
+            var specRough = draw.SpecRough;
             var view = mgr.Views.Add(LtViewType.vt_Arbitrary);
             bool ok = false;
 
@@ -341,12 +377,14 @@ namespace ExportDXF_Kompas
             {
                 var assoc = (IAssociationView)view;
                 assoc.SourceFileName = srcFile;
-
-                var emb = assoc as IEmbodimentsManager;
-                if (emb != null && emb.EmbodimentCount > 0)
+                
+                
+                if (embIndex > 0)
                 {
-                    int idx = Math.Max(0, Math.Min(embIndex, emb.EmbodimentCount - 1));
-                    emb.SetCurrentEmbodiment(idx);
+                    var emb = view as IEmbodimentsManager;
+                    var treeEmb = emb.GetEmbodimentsTree(ksVariantMarkingTypeEnum.ksVMFullMarking, false, false);
+                    int embodimentIndex = Array.IndexOf(treeEmb, part.Marking);
+                    emb.SetCurrentEmbodiment(embodimentIndex);
                 }
 
                 bool updated = false;
@@ -355,8 +393,20 @@ namespace ExportDXF_Kompas
                 _view = part.View;
                 try
                 {
-                    try
+                    bool viewDesignationVisable = settings.Disignation;
+                    bool CreateViewElements = settings.CreateViewElements;
+
+                    if (!CreateViewElements && specRough.IsCreated)
                     {
+                        specRough.Delete();
+                    }
+                    if (!CreateViewElements && technicalDemand.IsCreated)
+                    {
+                        technicalDemand.Delete();
+                    }
+
+                    try
+                        {
                         assoc.Unfold = part.HasUnfold;
                         assoc.ProjectionName = _view;
                         assoc.Name = _view.Replace("#", "");
@@ -379,7 +429,7 @@ namespace ExportDXF_Kompas
 
 
                     IViewDesignation viewDesignation = view as IViewDesignation;
-                    bool viewDesignationVisable = settings.Disignation;
+                   
 
                     viewDesignation.ShowUnfold = viewDesignationVisable;
                     viewDesignation.ShowScale = viewDesignationVisable;
@@ -390,7 +440,7 @@ namespace ExportDXF_Kompas
                     viewDesignation.ShowName = viewDesignationVisable;
 
                     IAssociationViewElements ass = view as IAssociationViewElements;
-                    bool CreateViewElements = settings.CreateViewElements;
+                    
                     ass.CreateCentresMarkers = settings.CenterLinesVisible;
                     ass.CreateAxis = settings.CenterLinesVisible;
                     ass.CreateLinearCentres = settings.CenterLinesVisible;
@@ -531,12 +581,15 @@ namespace ExportDXF_Kompas
                                         continue;
 
                                     double minR = list.Min(c => c.Radius);
+                                    double maxDiff = settings.MaxDiameterDiff;
 
                                     foreach (var c in list)
                                     {
                                         if (c.Radius > minR + tol)
                                         {
-                                            doc2D.ksDeleteObj(c.Id);
+                                            double diameterDiff = 2 * (c.Radius - minR);
+                                            if (diameterDiff <= maxDiff)
+                                                doc2D.ksDeleteObj(c.Id);
                                         }
                                     }
                                 }
@@ -731,18 +784,16 @@ namespace ExportDXF_Kompas
                 // нет исполнений → одиночная деталь
                 if (embCount == 0)
                 {
-                    var info = GetPart(topPart, 0);
+                    var info = GetPart(topPart);
                     if (info != null)
                     {
                         var node = new TreeNode(
                             checkBoxStr(info) + $"{info.Marking}-{info.Name}"
                         )
                         {
-                            Tag = info,
-                            BackColor = setColor(info),
-                            ImageKey = icons(info),
-                            SelectedImageKey = icons(info)
+                            Tag = info
                         };
+                        setContentNods(node);
 
                         nodes.Add(node);
                     }
@@ -752,18 +803,16 @@ namespace ExportDXF_Kompas
                     // есть исполнения
                     for (int i = 0; i < embCount; i++)
                     {
-                        var info = GetPart(embMgr.Embodiment[i].Part, i);
+                        var info = GetPart(embMgr.Embodiment[i].Part);
                         if (info != null)
                         {
                             var node = new TreeNode(
                                 checkBoxStr(info) + $"{info.Marking}-{info.Name}"
                             )
                             {
-                                Tag = info,
-                                BackColor = setColor(info),
-                                ImageKey = icons(info),
-                                SelectedImageKey = icons(info)
+                                Tag = info                                
                             };
+                            setContentNods(node);
 
                             nodes.Add(node);
                         }
@@ -786,5 +835,188 @@ namespace ExportDXF_Kompas
             }
         }
 
+        public TreeNode[] ScanParticle()
+        {      
+            
+            var result = new List<TreeNode>();
+
+            // --- 1) Ищем прямоугольники -------------------------------------------------
+            ksDocument2D doc2D = (ksDocument2D)app5.Document2D();
+            ksIterator iter = app5.GetIterator();
+
+            iter.ksCreateIterator(0, 0);
+            int objRef = iter.ksMoveIterator("F");
+
+            var rectParam = (ksRectangleParam)app5.GetParamStruct(
+                (short)StructType2DEnum.ko_RectangleParam);
+
+            var rectangles = new List<RectangleInfo>();
+            while (objRef != 0)
+            {
+                int type = doc2D.ksGetObjParam(objRef, null, 0);
+
+                if (type == 35) // прямоугольник
+                {
+                    rectParam.Init();
+                    doc2D.ksGetObjParam(objRef, rectParam,
+                        (int)StructType2DEnum.ko_RectangleParam);
+
+                    double xmin = rectParam.x;
+                    double ymin = rectParam.y;
+                    double xmax = rectParam.x + rectParam.width;
+                    double ymax = rectParam.y + rectParam.height;
+
+                    rectangles.Add(new RectangleInfo(objRef, xmin, xmax, ymin, ymax));
+                }
+
+                objRef = iter.ksMoveIterator("N");
+            }
+
+
+            // --- 2) Сканируем все объекты и проверяем попадание по начальным координатам ---
+
+            foreach (var rect in rectangles)
+            {
+                TreeNode rectNode = new TreeNode($"Rectangle ID={rect.Id}");
+
+                ksIterator iter2 = app5.GetIterator();
+                iter2.ksCreateIterator(0, 0);
+                int obj2 = iter2.ksMoveIterator("F");
+
+                while (obj2 != 0)
+                {
+                    int type = doc2D.ksGetObjParam(obj2, null, 0);
+
+                    if (TryGetObjectStartPoint(doc2D, obj2, type, out double ox, out double oy))
+                    {
+                        if (ox > rect.Xmin && ox < rect.Xmax &&
+                            oy < rect.Ymin && oy > rect.Ymax)
+                        {
+                            rectNode.Nodes.Add(
+                                new TreeNode($"OBJ={obj2} type={type} ({ox:F2},{oy:F2})"));
+                        }
+                    }
+
+                    obj2 = iter2.ksMoveIterator("N");
+                }
+
+                result.Add(rectNode);
+            }
+
+            return result.ToArray();
+        }
+
+        private bool TryGetObjectStartPoint(ksDocument2D doc2D, int objRef, int type, out double x, out double y)
+        {
+            x = y = 0;
+
+            switch (type)
+            {
+                case 1: // Линия
+                    {
+                        var line = (ksLineSegParam)app5.GetParamStruct(
+                            (short)StructType2DEnum.ko_LineSegParam);
+                        line.Init();
+
+                        int len = doc2D.ksGetObjParam(objRef, line, 0);
+                        if (len != 0)
+                        {
+                            x = line.x1;
+                            y = line.y1;
+                            return true;
+                        }
+                        break;
+                    }
+
+                case 2: // Окружность
+                    {
+                        var cir = (ksCircleParam)app5.GetParamStruct(
+                            (short)StructType2DEnum.ko_CircleParam);
+                        cir.Init();
+
+                        int len = doc2D.ksGetObjParam(objRef, cir, 0);
+                        if (len != 0)
+                        {
+                            x = cir.xc;
+                            y = cir.yc;
+                            return true;
+                        }
+                        break;
+                    }
+
+                case 3: // Дуга
+                    {
+                        var arc = (ksArcByAngleParam)app5.GetParamStruct(
+                            (short)StructType2DEnum.ko_ArcByAngleParam);
+                        arc.Init();
+
+                        int len = doc2D.ksGetObjParam(objRef, arc, 0);
+                        if (len != 0)
+                        {
+                            x = arc.xc;
+                            y = arc.yc;
+                            return true;
+                        }
+                        break;
+                    }
+
+                case 4: // Текст
+                    {
+                        var text = (ksTextLineParam)app5.GetParamStruct(
+                            (short)StructType2DEnum.ko_TextLineParam);
+                        text.Init();
+                        {
+
+                            ksDynamicArray pp = text.GetTextItemArr();
+                            int count = pp.ksGetArrayCount();
+                            int typeText = pp.ksGetArrayType();
+                            for (int i = 0; i < count; i++)
+                            {
+                                var item = pp.ksGetArrayItem(i, text);
+                                
+                            }
+                            return true;
+                        }
+                        break;
+                    }
+
+                case 33: // NURBS / spline
+                    {
+                        var spline = (ksNurbsPointParam)app5.GetParamStruct(
+                            (short)StructType2DEnum.ko_NurbsPointParam);
+                        spline.Init();
+
+                        int len = doc2D.ksGetObjParam(objRef, spline, 0);
+                        if (len != 0)
+                        {
+                            // Возьмём первую точку
+                            x = spline.x;
+                            y = spline.y;
+                            return true;
+                        }
+                        break;
+                    }                
+            }
+
+            return false;
+        }
+
+
     }
+
+    public class RectangleInfo
+    {
+        public int Id;
+        public double Xmin, Xmax, Ymin, Ymax;
+
+        public RectangleInfo(int id, double xmin, double xmax, double ymin, double ymax)
+        {
+            Id = id;
+            Xmin = xmin;
+            Xmax = xmax;
+            Ymin = ymin;
+            Ymax = ymax;
+        }
+    }
+
 }
