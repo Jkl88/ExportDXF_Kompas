@@ -968,7 +968,7 @@ namespace ExportDXF_Kompas
             this.KeyPreview = true;
             this.MaximizeBox = false;
             this.Name = "MainForm";
-            this.Text = "ExportDXF - Компас  - v1.1.5";
+            this.Text = "ExportDXF - Компас  - v1.1.6";
             this.contextMenuExport.ResumeLayout(false);
             this.statusStrip.ResumeLayout(false);
             this.statusStrip.PerformLayout();

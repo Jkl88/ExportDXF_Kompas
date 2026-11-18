@@ -29,9 +29,10 @@ namespace ExportDXF_Kompas
         private readonly Inform inform = new Inform();
         private bool kompasConnect = false;
         private bool contextFromNode = false;
-        public MainForm()
+        public String arg;
+        public MainForm(String _arg)
         {
-            
+            arg = _arg;
             InitializeComponent();
             settings = LoadSettings(); // ← загружаем настройки при запуске
             StartSettingsMonitor();
@@ -46,6 +47,7 @@ namespace ExportDXF_Kompas
             toolStripStatusLabel.Text = kompasConnect ? "✅ Подключено к КОМПАС" : "❌ КОМПАС не запущен";
             toolStripStatusLabel.ForeColor = kompasConnect ? Color.Green : Color.Red;
             butScan.Enabled = kompasConnect;
+            if (arg == "scan") butScan_Click(null, null);
         }        
 
         private async void butScan_Click(object sender, EventArgs e)
@@ -537,7 +539,15 @@ namespace ExportDXF_Kompas
                 
 
                 int count = 0;
-                string baseFolder = textBoxPath.Text;
+
+                // DXF сохраняются строго в папку модели каждой детали (а не в папку предыдущего вывода)
+                string FolderOf(PartInfo p) => Path.GetDirectoryName(p.FilePath) ?? "";
+                var exportFolders = nodes
+                    .Select(n => n.Tag as PartInfo)
+                    .Where(p => p != null)
+                    .Select(p => FolderOf(p))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
 
                 await Task.Run(() =>
                 {
@@ -545,7 +555,10 @@ namespace ExportDXF_Kompas
                     {
                         if (n.Tag is PartInfo info)
                         {
-                            string fullPath = $"{baseFolder}{BuildFileName(info)}";
+                            string baseFolder = FolderOf(info);
+                            if (string.IsNullOrEmpty(baseFolder))
+                                baseFolder = textBoxPath.Text;
+                            string fullPath = Path.Combine(baseFolder, BuildFileName(info));
 
                             // создаём каталог, если его нет
                             string dir = Path.GetDirectoryName(fullPath);
@@ -581,7 +594,8 @@ namespace ExportDXF_Kompas
                 {
                     try
                     {
-                        System.Diagnostics.Process.Start("explorer.exe", baseFolder);
+                        string openFolder = exportFolders.FirstOrDefault() ?? textBoxPath.Text;
+                        System.Diagnostics.Process.Start("explorer.exe", openFolder);
                     }
                     catch (Exception ex)
                     {

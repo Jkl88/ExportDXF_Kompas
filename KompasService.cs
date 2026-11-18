@@ -621,6 +621,8 @@ namespace ExportDXF_Kompas
                     return false; // без каталога сохранять нет смысла
                 }
                 ok = doc2D.ksSaveToDXF(outFile);
+                if (ok)
+                    SetDxfUnitsToMillimeters(outFile);
 
             }
             finally
@@ -637,6 +639,116 @@ namespace ExportDXF_Kompas
             }
             return ok;
 
+        }
+
+        // КОМПАС сохраняет координаты в миллиметрах, но в заголовке DXF
+        // часто пишет $INSUNITS = 1 (дюймы). Просмотрщик тогда показывает in.
+        private static void SetDxfUnitsToMillimeters(string filePath)
+        {
+            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+                return;
+
+            byte[] bytes = File.ReadAllBytes(filePath);
+            if (bytes.Length >= 18 && Encoding.ASCII.GetString(bytes, 0, 18) == "AutoCAD Binary DXF")
+                return;
+
+            var latin1 = Encoding.GetEncoding("ISO-8859-1");
+            string text = latin1.GetString(bytes);
+            string nl = text.Contains("\r\n") ? "\r\n" : "\n";
+            var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).ToList();
+
+            if (!TryGetDxfHeaderRange(lines, out int headerStart, out int headerEnd))
+                return;
+
+            bool changed = false;
+            changed |= SetDxfHeaderInt(lines, headerStart, ref headerEnd, "$INSUNITS", 4);
+            changed |= SetDxfHeaderInt(lines, headerStart, ref headerEnd, "$MEASUREMENT", 1);
+            if (!changed)
+                return;
+
+            File.WriteAllBytes(filePath, latin1.GetBytes(string.Join(nl, lines)));
+        }
+
+        private static bool TryGetDxfHeaderRange(List<string> lines, out int headerStart, out int headerEnd)
+        {
+            headerStart = -1;
+            headerEnd = -1;
+
+            for (int i = 0; i < lines.Count - 3; i++)
+            {
+                if (lines[i].Trim() == "0"
+                    && lines[i + 1].Trim() == "SECTION"
+                    && lines[i + 2].Trim() == "2"
+                    && lines[i + 3].Trim() == "HEADER")
+                {
+                    headerStart = i;
+                    break;
+                }
+            }
+
+            if (headerStart < 0)
+                return false;
+
+            for (int i = headerStart + 4; i < lines.Count - 1; i++)
+            {
+                if (lines[i].Trim() == "0" && lines[i + 1].Trim() == "ENDSEC")
+                {
+                    headerEnd = i;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool SetDxfHeaderInt(List<string> lines, int headerStart, ref int headerEnd, string name, int value)
+        {
+            for (int i = headerStart; i + 3 < headerEnd; i++)
+            {
+                if (lines[i].Trim() != "9" || lines[i + 1].Trim() != name)
+                    continue;
+                if (lines[i + 2].Trim() != "70")
+                    return false;
+
+                string formatted = FormatDxfInt(lines[i + 3], value);
+                if (lines[i + 3] == formatted)
+                    return false;
+
+                lines[i + 3] = formatted;
+                return true;
+            }
+
+            string g9 = "  9";
+            string g70 = " 70";
+            string sampleValue = "     0";
+            for (int i = headerStart; i < headerEnd; i++)
+            {
+                if (lines[i].Trim() == "9")
+                    g9 = lines[i];
+                if (lines[i].Trim() == "70" && i + 1 < headerEnd)
+                {
+                    g70 = lines[i];
+                    sampleValue = lines[i + 1];
+                }
+            }
+
+            lines.Insert(headerEnd, g9);
+            lines.Insert(headerEnd + 1, name);
+            lines.Insert(headerEnd + 2, g70);
+            lines.Insert(headerEnd + 3, FormatDxfInt(sampleValue, value));
+            headerEnd += 4;
+            return true;
+        }
+
+        private static string FormatDxfInt(string sample, int value)
+        {
+            string text = value.ToString();
+            if (!string.IsNullOrEmpty(sample)
+                && sample.Length > text.Length
+                && char.IsWhiteSpace(sample[0]))
+                return text.PadLeft(sample.Length);
+
+            return text;
         }
 
         class CircleInfo
@@ -677,56 +789,85 @@ namespace ExportDXF_Kompas
                 return 0; // чтобы всегда сравнивать Equals() вручную
             }
         }
+        // Объединяет коллинеарные отрезки: перекрывающиеся, дублирующиеся и стыкующиеся.
+        // Старая версия сравнивала только концы и на перекрытии/дубликате теряла участки линии
+        // (так пропадала внутренняя линия сгиба, плотно прилегающая к основному металлу).
         static List<LineSeg> MergeLines(List<LineSeg> input, double angleTolDeg = 0.5, double pointTol = 0.02)
         {
-            List<LineSeg> lines = new(input);
-            bool changed;
-            do
+            var result = new List<LineSeg>();
+            var used = new bool[input.Count];
+
+            for (int i = 0; i < input.Count; i++)
             {
-                changed = false;
-                List<LineSeg> newLines = new();
-                var used = new bool[lines.Count];
+                if (used[i]) continue;
+                used[i] = true;
 
-                for (int i = 0; i < lines.Count; i++)
+                var seed = input[i];
+                double len = Dist(seed.Start, seed.End);
+                if (len < pointTol) continue; // вырожденный отрезок
+
+                double ux = (seed.X2 - seed.X1) / len;
+                double uy = (seed.Y2 - seed.Y1) / len;
+
+                // проекция точки на направление seed (от его начала)
+                double Proj((double x, double y) p) => (p.x - seed.X1) * ux + (p.y - seed.Y1) * uy;
+                // расстояние точки до прямой seed
+                double PerpDist((double x, double y) p) => Math.Abs((p.x - seed.X1) * uy - (p.y - seed.Y1) * ux);
+
+                // собираем все отрезки, лежащие на той же прямой
+                var intervals = new List<(double t0, double t1)>();
+                void AddInterval(LineSeg s)
                 {
-                    if (used[i]) continue;
-                    var a = lines[i];
-                    for (int j = i + 1; j < lines.Count; j++)
-                    {
-                        if (used[j]) continue;
-                        var b = lines[j];
-                        double da = Math.Abs(NormDeg(Rad2Deg(a.Angle) - Rad2Deg(b.Angle)));
-                        if (da > angleTolDeg && Math.Abs(da - 180) > angleTolDeg)
-                            continue; // разный угол
+                    double p1 = Proj(s.Start), p2 = Proj(s.End);
+                    intervals.Add((Math.Min(p1, p2), Math.Max(p1, p2)));
+                }
+                AddInterval(seed);
 
-                        if (Dist(a.End, b.Start) < pointTol)
-                        {
-                            a = new LineSeg(a.X1, a.Y1, b.X2, b.Y2);
-                            used[j] = true; changed = true;
-                        }
-                        else if (Dist(a.Start, b.End) < pointTol)
-                        {
-                            a = new LineSeg(b.X1, b.Y1, a.X2, a.Y2);
-                            used[j] = true; changed = true;
-                        }
-                        else if (Dist(a.Start, b.Start) < pointTol)
-                        {
-                            a = new LineSeg(b.X2, b.Y2, a.X2, a.Y2);
-                            used[j] = true; changed = true;
-                        }
-                        else if (Dist(a.End, b.End) < pointTol)
-                        {
-                            a = new LineSeg(a.X1, a.Y1, b.X1, b.Y1);
-                            used[j] = true; changed = true;
-                        }
-                    }
-                    newLines.Add(a);
-                    used[i] = true;
+                for (int j = i + 1; j < input.Count; j++)
+                {
+                    if (used[j]) continue;
+                    var b = input[j];
+                    if (Dist(b.Start, b.End) < pointTol) { used[j] = true; continue; }
+
+                    double da = Math.Abs(NormDeg(Rad2Deg(seed.Angle) - Rad2Deg(b.Angle)));
+                    if (da > angleTolDeg && Math.Abs(da - 180) > angleTolDeg)
+                        continue; // разный угол
+                    if (PerpDist(b.Start) > pointTol || PerpDist(b.End) > pointTol)
+                        continue; // параллельна, но не на той же прямой
+
+                    AddInterval(b);
+                    used[j] = true;
                 }
 
-                lines = newLines;
-            } while (changed);
-            return lines;
+                // склеиваем перекрывающиеся и стыкующиеся интервалы
+                intervals.Sort((p, q) => p.t0.CompareTo(q.t0));
+                double curS = intervals[0].t0, curE = intervals[0].t1;
+
+                void Emit(double t0, double t1)
+                {
+                    if (t1 - t0 < pointTol) return;
+                    result.Add(new LineSeg(
+                        seed.X1 + ux * t0, seed.Y1 + uy * t0,
+                        seed.X1 + ux * t1, seed.Y1 + uy * t1));
+                }
+
+                for (int k = 1; k < intervals.Count; k++)
+                {
+                    if (intervals[k].t0 <= curE + pointTol)
+                    {
+                        curE = Math.Max(curE, intervals[k].t1);
+                    }
+                    else
+                    {
+                        Emit(curS, curE);
+                        curS = intervals[k].t0;
+                        curE = intervals[k].t1;
+                    }
+                }
+                Emit(curS, curE);
+            }
+
+            return result;
         }
 
         static double Rad2Deg(double r) => r * 180.0 / Math.PI;

@@ -13,13 +13,15 @@ namespace ExportDXF_Kompas
         /// Главная точка входа для приложения.
         /// </summary>
         [STAThread]        
-        static void Main()
+        static void Main(string[] args)
         {
             Application.ApplicationExit += OnAppExit;
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            mainForm = new MainForm();
-            Application.Run(mainForm);
+            if (args.Length == 0)
+                Application.Run(new MainForm(""));
+            else
+                Application.Run(new MainForm(args[0]));
         }
 
         private static void OnAppExit(object sender, EventArgs e)
