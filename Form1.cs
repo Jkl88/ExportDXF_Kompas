@@ -22,6 +22,9 @@ namespace ExportDXF_Kompas
 {
     public partial class MainForm: System.Windows.Forms.Form
     {
+        // Значение поля папки вывода: DXF сохраняются в папку каждой модели
+        private const string ModelFoldersMarker = "[папки моделей]";
+
         private readonly string settingsPath = Path.Combine(
             System.Windows.Forms.Application.StartupPath, "settings.json");
         public readonly KompasService kompas;
@@ -148,9 +151,7 @@ namespace ExportDXF_Kompas
             bool anySelected = _part != null;
             if (!anySelected) { button_Export.Enabled = anySelected; return; }
             
-            FileInfo file = new FileInfo(_part.Part.FileName);
             listProperties.Tag = _part;
-            textBoxPath.Text = file.DirectoryName;
             button_Export.Enabled = anySelected;
             
            
@@ -175,7 +176,8 @@ namespace ExportDXF_Kompas
         private void buttonPath_Click(object sender, EventArgs e)
         {
             FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog();
-            folderBrowserDialog.SelectedPath = textBoxPath.Text;
+            string current = textBoxPath.Text.Trim();
+            folderBrowserDialog.SelectedPath = Directory.Exists(current) ? current : "";
             DialogResult result = folderBrowserDialog.ShowDialog();
             if (result == DialogResult.OK)
             {
@@ -540,12 +542,22 @@ namespace ExportDXF_Kompas
 
                 int count = 0;
 
-                // DXF сохраняются строго в папку модели каждой детали (а не в папку предыдущего вывода)
-                string FolderOf(PartInfo p) => Path.GetDirectoryName(p.FilePath) ?? "";
+                // Куда сохранять: "[папки моделей]" (или пусто) — папка каждой модели,
+                // иначе — указанная папка для всех DXF
+                string targetText = textBoxPath.Text.Trim();
+                bool useModelFolders = string.IsNullOrEmpty(targetText)
+                    || targetText.Equals(ModelFoldersMarker, StringComparison.OrdinalIgnoreCase);
+                string customFolder = useModelFolders ? null : targetText;
+
+                string FolderOf(PartInfo p) => useModelFolders
+                    ? (Path.GetDirectoryName(p.FilePath) ?? "")
+                    : customFolder;
+
                 var exportFolders = nodes
                     .Select(n => n.Tag as PartInfo)
                     .Where(p => p != null)
                     .Select(p => FolderOf(p))
+                    .Where(f => !string.IsNullOrEmpty(f))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
 
@@ -557,8 +569,11 @@ namespace ExportDXF_Kompas
                         {
                             string baseFolder = FolderOf(info);
                             if (string.IsNullOrEmpty(baseFolder))
-                                baseFolder = textBoxPath.Text;
-                            string fullPath = Path.Combine(baseFolder, BuildFileName(info));
+                                continue; // не знаем папку — не пишем в корень диска
+
+                            // BuildFileName возвращает путь с ведущим "\" (может содержать подпапки),
+                            // поэтому склеиваем конкатенацией, а не Path.Combine (тот отбрасывает базу)
+                            string fullPath = baseFolder.TrimEnd('\\', '/') + BuildFileName(info);
 
                             // создаём каталог, если его нет
                             string dir = Path.GetDirectoryName(fullPath);

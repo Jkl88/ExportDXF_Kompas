@@ -710,7 +710,8 @@ namespace ExportDXF_Kompas
             this.textBoxPath.Name = "textBoxPath";
             this.textBoxPath.Size = new System.Drawing.Size(472, 20);
             this.textBoxPath.TabIndex = 0;
-            // 
+            this.textBoxPath.Text = "[папки моделей]";
+            //
             // tabPage3
             // 
             this.tabPage3.Controls.Add(this.checkBoxSimple);
